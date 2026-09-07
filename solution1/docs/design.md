@@ -76,6 +76,21 @@ The "no" counting cells, together with the finalized proposal cell, can be consu
 
 As a challenger, they will likely include as many "no" votes as possible, just as a proposal initiator would try to include as many "yes" votes as possible. Votes that are not included are probably too small to matter, so leaving them out helps prevent "dust" attacks.
 
+## Type Script and Cells
+The proposal, finalized proposal, and passed proposal cells share the same type script: the proposal type script. See details in [proposal type script spec](./proposal-type-script-spec.md).
+
+The vote cell has the vote type script; see details in [vote type script](./vote-type-script.md).
+
+The counting cell has the counting type script; see details in [counting type script](./counting-type-script.md).
+
+## Conventions
+The following conventions are used in design and spec documents.
+- ckb-hash: denotes the blake2b hash function with the following configuration:
+  * output digest size: 32
+  * personalization: ckb-default-hash
+- ckb-blake160-hash: the leading 20 bytes of ckb-hash.
+- A config cell is used for this voting system. Any field can be referred to as `config.<field>`. During processing, the script first loads the predefined config cell and then reads the field in molecule format.
+
 
 ## Diagram
 
