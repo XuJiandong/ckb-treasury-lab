@@ -18,6 +18,7 @@ The corresponding cell data has the following structure in molecule format:
 table ProposalCellData {
     status: byte
     description: Bytes,
+    applied_amount: Uint64,
     total_yes: Uint64,
 }
 ```
@@ -28,6 +29,8 @@ The `status` field can take the following valid values to indicate the type of c
 - 2: passed proposal cell
 
 The `description` field is UTF-8 text that describes the proposal.
+
+The `applied_amount` field is the amount of assets that can be granted if the voting passes.
 
 ## Witness
 No witness is needed.
@@ -41,10 +44,12 @@ In this phase, a proposal cell is created. The `args` must follow the Type ID ru
 
 The cell's `capacity` must be larger than `config.minimal_proposal_capacity`. If the proposal fails due to a challenge, this capacity is the assets to be lost.
 
-### Updating to be finalized
-In this phase, a proposal cell, together with some counting cells, is consumed to generate a finalized proposal cell. The `args` should be kept the same, as the Type ID rule requires. The output lock script of the finalized proposal cell should be the `always success` lock script, so that it can be challenged by others.
+The cell's lock script should be chosen from the initiator's pubkey, so that only the initiator can unlock the proposal cell and control the final operation.
 
-The script then goes through all counting cells, which are identified by `config.counting_cell_code_hash`/`config.counting_cell_hash_type`. It checks that the `args` is the ckb-blake160-hash of the proposal cell. Finally, it sums all "YES" values in the counting cells' cell data. If the sum is less than the `config.yes_threshold`, it fails. The `yes_vote` field should be the sum.
+### Updating to be finalized
+In this phase, a proposal cell, together with some counting cells, is consumed to generate a finalized proposal cell. This can only happen after `config.vote_duration`, a relative `since` value based on the proposal cell, elapses. The `args` should be kept the same, as the Type ID rule requires. The output lock script of the finalized proposal cell should be the `always success` lock script, so that it can be challenged by others.
+
+The script then goes through all counting cells, which are identified by `config.counting_cell_code_hash`/`config.counting_cell_hash_type`. It checks that the `args` is the ckb-blake160-hash of the proposal cell. Finally, it sums all "YES" values in the counting cells' cell data. If the sum is less than the `config.yes_threshold`, it fails. The `total_yes` field should be the sum.
 
 Then it checks the `hash range` of all counting cells: they must not overlap. 
 

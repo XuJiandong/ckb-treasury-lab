@@ -29,7 +29,10 @@ The `direction` is `0` for "NO" or `1` for "YES". A "NO" vote can challenge the 
 ## Processing
 The first output cell is the vote cell and carries this type script. Its lock script should represent the voter's identity and must be unlocked in the input cells. The other cells in this transaction can't be vote cell.
 
-The script iterates over all cell_deps to find the proposal type script whose hash matches `args`. While iterating, the script collects all DAO deposit cells whose lock script matches the voter's lock script. The sum of all these DAO deposits must equal the `vote_amount` in the cell data. All DAO deposit cells should be older than the proposal cell, as determined by comparing the `number` in the `header` (block number).
+The script iterates over all cell_deps to find the proposal type script whose hash matches `args`; if none is found, the script fails. The referenced cell must be a proposal cell, i.e. the `status` in its cell data must be 0 ("proposal"), so a vote can only be cast before the proposal cell is finalized. 
+
+
+While iterating, the script collects all DAO deposit cells whose lock script matches the voter's lock script. A cell is counted as a DAO deposit only if its type script is the Nervos DAO type script, checked via `code_hash` and `hash_type`; cells with any other type script are ignored. The sum of all these DAO deposits must equal the `vote_amount` in the cell data. All DAO deposit cells should be older than the proposal cell, as determined by comparing the `number` in the `header` (block number).
 
 ## Others
 Users must keep vote cells alive throughout the voting process. Any user can withdraw an existing vote by consuming the vote cell. A user may also cast a vote using only part of a DAO deposit, by referring to that portion of the deposit.

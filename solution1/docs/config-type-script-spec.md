@@ -18,15 +18,20 @@ It has following structures in molecule format:
 
 ```
 table VotingConfig {
+    emergent_halt: byte,
     vote_code_hash: Bytes32,
     vote_hash_type: byte,
     counting_code_hash: Bytes32,
     counting_hash_type: byte,
     yes_threshold: Uint64,
     minimal_proposal_capacity: Uint64,
+    vote_duration: Uint64,
     challenge_time: Uint64,
 }
 ```
+
+The `emergent_halt` is read by all type scripts (the proposal type script, the vote type script, and the count type script). When set to `1`, all scripts fail. Updating this field halts the voting system.
+
 
 ## Security
 This cell is very important and should be locked by a very safe lock script, as compromising it can break the whole voting system. It is suggested to use multisig to lock this cell.
