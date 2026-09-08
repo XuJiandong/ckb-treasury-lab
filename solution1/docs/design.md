@@ -7,6 +7,25 @@ and requires no changes to the nodes. The design follows these rules:
 1. Specific cells are identified by their associated type scripts.
 2. Unless specified otherwise, their lock scripts are not restricted.
 
+## How to Read
+This design document provides an overview of the voting system, along with the following specifications:
+- [Proposal Type Script Specification](./proposal-type-script-spec.md)
+- [Vote Type Script Specification](./vote-type-script.md)
+- [Counting Type Script Specification](./counting-type-script.md)
+- [Config Type Script Specification](./config-type-script.md)
+
+It includes all the necessary design details. For more details, such as data structures, refer to the corresponding specifications.
+
+
+## Conventions
+The following conventions are used in design and spec documents.
+- ckb-hash: denotes the blake2b hash function with the following configuration:
+  * output digest size: 32
+  * personalization: ckb-default-hash
+- ckb-blake160-hash: the leading 20 bytes of ckb-hash.
+- A config cell is used for this voting system. Any field can be referred to as `config.<field>`. During processing, the script first loads the predefined config cell and then reads the field in molecule format.
+
+
 ## Processing
 
 ### Proposal Cell
@@ -19,7 +38,7 @@ across the whole blockchain. This also means that type scripts are unique. It ha
 2. It can be consumed and burnt
 
 These rules are actually the same as the `Type ID` rules. Some fields should be defined in the cell data:
-1. vote_end_time: after this time, the initiator can collect votes
+1. config.vote_duration: after this time, the initiator can update the proposal to be finalized.
 2. applied_amount: the amount of assets that can be granted if the voting passes.
 3. status: should be `proposal`, `finalized`, `passed` to present different status. The initial status is `proposal`.
 
@@ -38,22 +57,22 @@ A vote unlocks an existing cell to represent ownership of a DAO deposit. The vot
 Since the DAO deposit must be older than the proposal cell, it's impossible to use tricks like voting, withdrawing, and re-voting.
 
 ### Counting Cell
-
-After `vote_end_time`, the initiator can collect votes. This is done in counting cells. In its cell data, it should specify a `hash range`: [h1, h2], where h1, h2 are inclusive, with both values in byte(0~255). In its cell data, it should also specif a `status` indicating it is collecting "yes" or "no" vote. It should follow these rules:
+The initiator can collect votes before the proposal cell is consumed. This is done in counting cells. In its cell data, it should specify a `hash range`: [h1, h2], where h1, h2 are inclusive, with both values in byte(0~65535). In its cell data, it should also specif a `direction` indicating it is collecting "yes" or "no" vote. It should follow these rules:
 
 1. It should refer to the proposal cell via cell_deps
 2. Its type script args contain the hash of proposal type script hash
 3. It refers to vote cells via cell_deps
-4. All the vote cells in cell_deps should have a lock script whose hash's first byte falls within the `hash range`
+4. All the vote cells in cell_deps should have a lock script whose hash's first 2 bytes falls within the `hash range`
 5. The vote cells' type script code_hash/hash_type are checked. The vote cells' type script args should be identical to the counting cell's type script args.
 6. Its cell data contains the sum of all the vote cells' vote amounts
-7. All vote cells' directions are "yes"
+7. All vote cells' directions are same
 8. All lock scripts in vote cells must be unique.
 
 When the number of vote cells is small, one counting cell might be enough. It works by slicing the voting work into chunks to reduce storage and computation.
 
 ### Finalized Proposal Cell
 Now all counting cells, together with the proposal cell, can be consumed to produce a new finalized proposal cell.
+This must happen after `config.vote_duration`. The `vote_duration` is a relative `since` based on the proposal cell.
 This is essentially the operation of updating the proposal cell, and it should follow these rules:
 
 1. All counting cells have type script args that reference the hash of the proposal type script, and the proposal cell is an input cell.
@@ -82,14 +101,6 @@ The proposal, finalized proposal, and passed proposal cells share the same type 
 The vote cell has the vote type script; see details in [vote type script](./vote-type-script.md).
 
 The counting cell has the counting type script; see details in [counting type script](./counting-type-script.md).
-
-## Conventions
-The following conventions are used in design and spec documents.
-- ckb-hash: denotes the blake2b hash function with the following configuration:
-  * output digest size: 32
-  * personalization: ckb-default-hash
-- ckb-blake160-hash: the leading 20 bytes of ckb-hash.
-- A config cell is used for this voting system. Any field can be referred to as `config.<field>`. During processing, the script first loads the predefined config cell and then reads the field in molecule format.
 
 
 ## Diagram
