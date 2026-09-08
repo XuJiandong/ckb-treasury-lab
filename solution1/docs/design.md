@@ -10,9 +10,9 @@ and requires no changes to the nodes. The design follows these rules:
 ## How to Read
 This design document provides an overview of the voting system, along with the following specifications:
 - [Proposal Type Script Specification](./proposal-type-script-spec.md)
-- [Vote Type Script Specification](./vote-type-script.md)
-- [Counting Type Script Specification](./counting-type-script.md)
-- [Config Type Script Specification](./config-type-script.md)
+- [Vote Type Script Specification](./vote-type-script-spec.md)
+- [Counting Type Script Specification](./counting-type-script-spec.md)
+- [Config Type Script Specification](./config-type-script-spec.md)
 
 It includes all the necessary design details. For more details, such as data structures, refer to the corresponding specifications.
 
@@ -98,9 +98,9 @@ As a challenger, they will likely include as many "no" votes as possible, just a
 ## Type Script and Cells
 The proposal, finalized proposal, and passed proposal cells share the same type script: the proposal type script. See details in [proposal type script spec](./proposal-type-script-spec.md).
 
-The vote cell has the vote type script; see details in [vote type script](./vote-type-script.md).
+The vote cell has the vote type script; see details in [vote type script](./vote-type-script-spec.md).
 
-The counting cell has the counting type script; see details in [counting type script](./counting-type-script.md).
+The counting cell has the counting type script; see details in [counting type script](./counting-type-script-spec.md).
 
 
 ## Diagram
