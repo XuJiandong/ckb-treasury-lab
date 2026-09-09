@@ -98,9 +98,9 @@ As a challenger, they will likely include as many "no" votes as possible, just a
 ## Type Script and Cells
 The proposal, finalized proposal, and passed proposal cells share the same type script: the proposal type script. See details in [proposal type script spec](./proposal-type-script-spec.md).
 
-The vote cell has the vote type script; see details in [vote type script](./vote-type-script-spec.md).
+The vote cell has the vote type script; see details in [vote type script spec](./vote-type-script-spec.md).
 
-The counting cell has the counting type script; see details in [counting type script](./counting-type-script-spec.md).
+The counting cell has the counting type script; see details in [counting type script spec](./counting-type-script-spec.md).
 
 
 ## Diagram

@@ -56,7 +56,7 @@ Then it checks the `hash range` of all counting cells: they must not overlap.
 Finally, the `status` field in cell data should changed from `0`("proposal") to `1`("finalized").
 
 ### Updating to be passed
-After the `config.challenge_time` relative since value elapses, the finalized proposal cell can be updated to a passed proposal cell.
+After the `config.challenge_time`(relative `since` value) elapses, the finalized proposal cell can be updated to a passed proposal cell.
 The `status` field in the cell data should change from `1` ("finalized") to `2` ("passed").
 See [RFC](https://github.com/nervosnetwork/rfcs/blob/master/rfcs/0017-tx-valid-since/0017-tx-valid-since.md) for more information.
 
@@ -69,3 +69,8 @@ It sums all "NO" values (called `total_no`) in the counting cells' cell data. It
 The `status` field in input cell data should be `1`("finalized").
 
 When a challenge succeeds, the finalized proposal cell is consumed, and the challenger receives all assets in the proposal cell as an incentive.
+
+### Recycling the Proposal Cell
+
+Once the sum of `config.vote_duration` and `config.challenge_time` (both relative `since` values) has elapsed, the initiator can consume the proposal cell and recycle its assets when the proposal fails to pass. The transaction must not include an output with a type script identical to the consumed proposal type script, so that the proposal cell is burned.
+
