@@ -74,3 +74,6 @@ When a challenge succeeds, the finalized proposal cell is consumed, and the chal
 
 Once the sum of `config.vote_duration` and `config.challenge_time` (both relative `since` values) has elapsed, the initiator can consume the proposal cell and recycle its assets when the proposal fails to pass. The transaction must not include an output with a type script identical to the consumed proposal type script, so that the proposal cell is burned.
 
+### Veto
+
+If an input lock script's hash matches `config.veto_lock_script_hash`, a finalized proposal cell can be consumed and burned. This mechanism allows the administrator (represented by `config.veto_lock_script_hash`) to cancel a proposal.
