@@ -26,6 +26,7 @@ table VotingConfig {
     yes_threshold: Uint64,
     minimal_proposal_capacity: Uint64,
     vote_duration: Uint64,
+    max_vote_age_blocks: Uint64,
     challenge_time: Uint64,
     veto_lock_script_hash: Bytes32,
 }

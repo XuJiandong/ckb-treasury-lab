@@ -35,6 +35,10 @@ While iterating, it collects all vote cells whose `code_hash` and `hash_type` ma
 
 The script sums the `vote_amount` of all vote cells. The sum must equal the `vote_amount` in this cell's data. Also, the `direction` of every vote cell must equal the `direction` in this cell's data.
 
+For each vote cell in `cell_deps`, the script subtracts the proposal cell's block number from the vote cell's block number. The result must be less than
+`config.max_vote_age_blocks`, which ensures that a vote is only cast within the specified time window.
+
+
 ## Others
 When the number of vote cells is large, it is suggested to slice them into several counting cells. Each counting cell handles an average-sized batch of vote cells. A counting cell's responsibility is to enable counting to work across different transactions and to reduce the workload.
 
