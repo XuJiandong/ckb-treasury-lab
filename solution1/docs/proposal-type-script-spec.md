@@ -46,7 +46,7 @@ The type script goes through several phases, which are described in the followin
 ### Creating
 In this phase, a proposal cell is created. The `args` must follow the Type ID rule, as described in the `Script` section, and the `status` field must be 0. The `total_yes` field should be 0.
 
-The cell's `capacity` must be larger than `config.minimal_proposal_capacity`. If the proposal fails due to a challenge, this capacity is the assets to be lost.
+The cell's `capacity` must be greater than or equal to `config.minimal_proposal_capacity`. If the proposal fails following a challenge, this capacity represents the assets to be lost.
 
 The cell's lock script should be chosen from the initiator's pubkey, so that only the initiator can unlock the proposal cell and control the final operation.
 
@@ -79,7 +79,7 @@ The passed proposal cell, together with a treasury provider (not described in th
 This process is identical to the `Updating to be finalized` phase, except for the following:
 * All counting cells should have a direction of "NO"
 
-It sums all "NO" values (called `total_no`) in the counting cells' cell data. It then combines the `total_no` with `total_yes`; if the result meets a predefined value, it fails. TODO: This algorithm and its values are not defined yet.
+It sums all "NO" values (called `total_no`) in the counting cells' cell data. The challenge succeeds, and the transaction is accepted, when `total_no` is greater than or equal to the `total_yes` recorded in the finalized proposal cell (`total_no >= total_yes`). It fails with `ChallengeNotMet` when fewer "NO" shannons are certified and the recycling window has not elapsed yet.
 
 The `status` field in input cell data should be `1`("finalized").
 

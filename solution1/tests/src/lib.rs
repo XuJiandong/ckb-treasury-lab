@@ -12,7 +12,17 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 #[cfg(test)]
+mod config_tests;
+#[cfg(test)]
+mod counting_tests;
+#[cfg(test)]
+mod helpers;
+#[cfg(test)]
+mod proposal_tests;
+#[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod vote_tests;
 
 // The exact same Loader code from capsule's template, except that
 // now we use MODE as the environment variable
