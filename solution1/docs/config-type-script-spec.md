@@ -13,6 +13,11 @@ args: <20 bytes, Type ID like args>
 
 The `args` is the ckb-blake160-hash of the first CellInput structure of the creating transaction, combined with the output index of the cell. This makes the script unique across the entire blockchain. This mechanics is used in [Type ID](https://github.com/nervosnetwork/rfcs/blob/master/rfcs/0022-transaction-structure/0022-transaction-structure.md#type-id).
 
+It performs [Type ID checking](https://github.com/nervosnetwork/ckb-std/blob/master/src/type_id.rs#L139) and verifies that the output cell exists.
+This prevents the config cell from being burned by mistake.
+
+It also validates the `config.<field>` values in the cell data, especially `vote_duration`, `vote_window`, and `challenge_time`, ensuring they are not too small or too large. This will be covered later.
+
 ## Cell Data
 It has following structures in molecule format:
 
@@ -26,7 +31,7 @@ table VotingConfig {
     yes_threshold: Uint64,
     minimal_proposal_capacity: Uint64,
     vote_duration: Uint64,
-    max_vote_age_blocks: Uint64,
+    vote_window: Uint64,
     challenge_time: Uint64,
     veto_lock_script_hash: Bytes32,
 }

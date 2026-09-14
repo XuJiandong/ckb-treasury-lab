@@ -47,7 +47,11 @@ The cell's `capacity` must be larger than `config.minimal_proposal_capacity`. If
 The cell's lock script should be chosen from the initiator's pubkey, so that only the initiator can unlock the proposal cell and control the final operation.
 
 ### Updating to be finalized
-In this phase, a proposal cell, together with some counting cells, is consumed to generate a finalized proposal cell. This can only happen after `config.vote_duration`, a relative `since` value based on the proposal cell, elapses. The `args` should be kept the same, as the Type ID rule requires. The output lock script of the finalized proposal cell should be the `always success` lock script, so that it can be challenged by others.
+In this phase, a proposal cell, together with some counting cells, is consumed to generate a finalized proposal cell. This can only happen after `config.vote_duration` has elapsed, a relative `since` value based on the proposal cell. The script can validate this by checking that:
+1. the `since` in the input cell is larger than `config.vote_duration`.
+2. both values are relative `since`
+
+The `args` should be kept the same, as the Type ID rule requires. The output lock script of the finalized proposal cell should be the `always success` lock script, so that it can be challenged by others.
 
 The script then goes through all counting cells, which are identified by `config.counting_cell_code_hash`/`config.counting_cell_hash_type`. It checks that the `args` is the ckb-blake160-hash of the proposal cell. Finally, it sums all "YES" values in the counting cells' cell data. If the sum is less than the `config.yes_threshold`, it fails. The `total_yes` field should be the sum.
 
@@ -71,8 +75,12 @@ The `status` field in input cell data should be `1`("finalized").
 When a challenge succeeds, the finalized proposal cell is consumed, and the challenger receives all assets in the proposal cell as an incentive.
 
 ### Recycling the Proposal Cell
+Once the sum of `config.vote_duration` and `config.challenge_time` (both relative `since` values) has elapsed, the initiator can consume the proposal cell and recycle its assets if the proposal fails to pass.
+The script can validate this by checking that:
+1. the `since` in the input cell is larger than the sum of `config.vote_duration` and `config.challenge_time`.
+2. both values are relative `since`.
 
-Once the sum of `config.vote_duration` and `config.challenge_time` (both relative `since` values) has elapsed, the initiator can consume the proposal cell and recycle its assets when the proposal fails to pass. The transaction must not include an output with a type script identical to the consumed proposal type script, so that the proposal cell is burned.
+The transaction must not include an output with a type script identical to the consumed proposal type script, so that the proposal cell is burned.
 
 ### Veto
 

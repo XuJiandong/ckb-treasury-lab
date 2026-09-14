@@ -24,6 +24,7 @@ The following conventions are used in design and spec documents.
   * personalization: ckb-default-hash
 - ckb-blake160-hash: the leading 20 bytes of ckb-hash.
 - A config cell is used for this voting system. Any field can be referred to as `config.<field>`. During processing, the script first loads the predefined config cell and then reads the field in molecule format.
+- The metric flag of all `since` values should be set to block number (00). See [more](https://github.com/nervosnetwork/rfcs/blob/master/rfcs/0017-tx-valid-since/0017-tx-valid-since.md).
 
 
 ## Processing
