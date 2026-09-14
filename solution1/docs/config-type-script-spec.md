@@ -16,8 +16,6 @@ The `args` is the ckb-blake160-hash of the first CellInput structure of the crea
 It performs [Type ID checking](https://github.com/nervosnetwork/ckb-std/blob/master/src/type_id.rs#L139) and verifies that the output cell exists.
 This prevents the config cell from being burned by mistake.
 
-It also validates the `config.<field>` values in the cell data, especially `vote_duration`, `vote_window`, and `challenge_time`, ensuring they are not too small or too large. This will be covered later.
-
 ## Cell Data
 It has following structures in molecule format:
 
