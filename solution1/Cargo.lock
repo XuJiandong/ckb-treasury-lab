@@ -480,6 +480,7 @@ dependencies = [
  "ckb-x64-simulator",
  "gcd",
  "int-enum",
+ "log",
 ]
 
 [[package]]

@@ -15,6 +15,8 @@ ckb_std::default_alloc!(16384, 1258306, 64);
 
 use alloc::vec::Vec;
 
+#[cfg(feature = "enable_log")]
+use ckb_std::log::{Level, error, log, warn};
 use ckb_std::{
     ckb_constants::Source,
     ckb_types::prelude::Entity,
@@ -32,7 +34,31 @@ use ckb_vote_common::{
 use ckb_vote_types::molecules::types::{Counting, Vote};
 
 pub fn program_entry() -> i8 {
-    rc(run())
+    #[cfg(feature = "enable_log")]
+    init_log();
+
+    let result = run();
+
+    // `rc` reduces a rejection to a numeric exit code, which does not tell why
+    // the transaction was rejected; `error!` keeps the reason in the node log.
+    #[cfg(feature = "enable_log")]
+    if let Err(error) = &result {
+        error!("counting type script rejected the transaction: {:?}", error);
+    }
+
+    rc(result)
+}
+
+/// Installs ckb-std's logger, which forwards the `log!`, `warn!` and `error!`
+/// messages of this script to the node log.
+///
+/// Logging costs cycles and binary size, so it is compiled in only when the
+/// `enable_log` feature is enabled - which the default features do.
+#[cfg(feature = "enable_log")]
+fn init_log() {
+    // A logger that is already installed - by the simulator or by the test
+    // process - is not an error: the messages are emitted all the same.
+    let _ = ckb_std::logger::init();
 }
 
 fn run() -> Result<(), Error> {
@@ -46,11 +72,25 @@ fn run() -> Result<(), Error> {
 
     let inputs = QueryIter::new(load_cell_type_hash, Source::GroupInput).count();
     let outputs = QueryIter::new(load_cell_type_hash, Source::GroupOutput).count();
+    #[cfg(feature = "enable_log")]
+    log!(
+        Level::Info,
+        "counting cell transition: {} input(s), {} output(s)",
+        inputs,
+        outputs
+    );
     match (inputs, outputs) {
         (0, 1) => create(&proposal_id),
         // Consuming a counting cell recycles its capacity. No other transition
         // exists: a counting cell may not be rewritten.
-        (_, 0) if inputs > 0 => Ok(()),
+        (_, 0) if inputs > 0 => {
+            #[cfg(feature = "enable_log")]
+            log!(
+                Level::Info,
+                "the counting cell is consumed and its capacity recycled"
+            );
+            Ok(())
+        }
         _ => Err(Error::CountingCellTransitionInvalid),
     }
 }
@@ -111,6 +151,10 @@ fn create(proposal_id: &[u8; constants::PROPOSAL_ID_LEN]) -> Result<(), Error> {
         let lock_hash =
             load_cell_lock_hash(index, Source::CellDep).map_err(|_| Error::VoteCellInvalid)?;
         if !hash_range.contains(read_u16(&lock_hash[..2])) {
+            #[cfg(feature = "enable_log")]
+            warn!(
+                "a vote cell of this transaction falls outside the hash range of the counting cell"
+            );
             return Err(Error::VoteLockOutOfRange);
         }
 
@@ -140,6 +184,8 @@ fn create(proposal_id: &[u8; constants::PROPOSAL_ID_LEN]) -> Result<(), Error> {
     // A voter may only appear once in a counting cell.
     voter_locks.sort_unstable();
     if voter_locks.windows(2).any(|pair| pair[0] == pair[1]) {
+        #[cfg(feature = "enable_log")]
+        warn!("the same voter lock is counted twice in this counting cell");
         return Err(Error::VoteLockNotUnique);
     }
     Ok(())

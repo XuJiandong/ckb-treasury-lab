@@ -16,6 +16,8 @@ ckb_std::default_alloc!(16384, 1258306, 64);
 
 use alloc::vec::Vec;
 
+#[cfg(feature = "enable_log")]
+use ckb_std::log::{Level, error, log, warn};
 use ckb_std::{
     ckb_constants::Source,
     ckb_types::{packed::Script, prelude::Entity},
@@ -36,7 +38,31 @@ use ckb_vote_types::molecules::types::{Counting, ProposalCellData};
 const RECIPIENT_LOCK_HASH_LEN: usize = 20;
 
 pub fn program_entry() -> i8 {
-    rc(run())
+    #[cfg(feature = "enable_log")]
+    init_log();
+
+    let result = run();
+
+    // `rc` reduces a rejection to a numeric exit code, which does not tell why
+    // the transaction was rejected; `error!` keeps the reason in the node log.
+    #[cfg(feature = "enable_log")]
+    if let Err(error) = &result {
+        error!("proposal type script rejected the transaction: {:?}", error);
+    }
+
+    rc(result)
+}
+
+/// Installs ckb-std's logger, which forwards the `log!`, `warn!` and `error!`
+/// messages of this script to the node log.
+///
+/// Logging costs cycles and binary size, so it is compiled in only when the
+/// `enable_log` feature is enabled - which the default features do.
+#[cfg(feature = "enable_log")]
+fn init_log() {
+    // A logger that is already installed - by the simulator or by the test
+    // process - is not an error: the messages are emitted all the same.
+    let _ = ckb_std::logger::init();
 }
 
 fn run() -> Result<(), Error> {
@@ -54,6 +80,13 @@ fn run() -> Result<(), Error> {
     // contains two of them (or none at all) is malformed.
     let inputs = QueryIter::new(load_cell_type_hash, Source::GroupInput).count();
     let outputs = QueryIter::new(load_cell_type_hash, Source::GroupOutput).count();
+    #[cfg(feature = "enable_log")]
+    log!(
+        Level::Info,
+        "proposal cell transition: {} input(s), {} output(s)",
+        inputs,
+        outputs
+    );
     match (inputs, outputs) {
         // A brand new proposal.
         (0, 1) => create(&config_id),
@@ -168,6 +201,13 @@ fn finalize(
     if tally.total_amount < config.yes_threshold {
         return Err(Error::YesThresholdNotMet);
     }
+    #[cfg(feature = "enable_log")]
+    log!(
+        Level::Info,
+        "the proposal is finalized: {} YES shannons certified by {} counting cell(s)",
+        tally.total_amount,
+        tally.count
+    );
     Ok(())
 }
 
@@ -193,12 +233,20 @@ fn settle(script: &Script, config_id: &[u8; CONFIG_ID_LEN]) -> Result<(), Error>
         status::PROPOSAL_STATUS_FINALIZED => {
             // 1. The administrator may veto a finalized proposal.
             if vetoed(&config)? {
+                #[cfg(feature = "enable_log")]
+                warn!("the administrator vetoed the finalized proposal");
                 return Ok(());
             }
             // 2. A challenger wins by collecting at least as much "NO" weight
             //    as the certified "YES" votes; the bond is the incentive.
             let tally = collect_counting_cells(script, &config, status::DIRECTION_NO)?;
             if tally.count > 0 && tally.total_amount >= u64_of(proposal.total_yes()) {
+                #[cfg(feature = "enable_log")]
+                warn!(
+                    "the proposal was challenged: {} NO shannons against {} YES shannons",
+                    tally.total_amount,
+                    u64_of(proposal.total_yes())
+                );
                 return Ok(());
             }
             // 3. Otherwise the bond can only be recycled once nobody is able to
@@ -239,6 +287,12 @@ fn grant(proposal: &ProposalCellData) -> Result<(), Error> {
         let capacity =
             load_cell_capacity(index, Source::Output).map_err(|_| Error::SyscallError)?;
         if capacity >= requested_amount {
+            #[cfg(feature = "enable_log")]
+            log!(
+                Level::Info,
+                "the passed proposal is settled: {} shannons delivered to the recipient",
+                requested_amount
+            );
             return Ok(());
         }
     }

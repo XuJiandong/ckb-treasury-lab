@@ -14,6 +14,8 @@ ckb_std::entry!(program_entry);
 
 ckb_std::default_alloc!(16384, 1258306, 64);
 
+#[cfg(feature = "enable_log")]
+use ckb_std::log::{Level, error, log, warn};
 use ckb_std::{
     ckb_constants::Source,
     ckb_types::{packed::Script, prelude::Entity},
@@ -31,7 +33,31 @@ use ckb_vote_common::{
 use ckb_vote_types::molecules::types::Vote;
 
 pub fn program_entry() -> i8 {
-    rc(run())
+    #[cfg(feature = "enable_log")]
+    init_log();
+
+    let result = run();
+
+    // `rc` reduces a rejection to a numeric exit code, which does not tell why
+    // the transaction was rejected; `error!` keeps the reason in the node log.
+    #[cfg(feature = "enable_log")]
+    if let Err(error) = &result {
+        error!("vote type script rejected the transaction: {:?}", error);
+    }
+
+    rc(result)
+}
+
+/// Installs ckb-std's logger, which forwards the `log!`, `warn!` and `error!`
+/// messages of this script to the node log.
+///
+/// Logging costs cycles and binary size, so it is compiled in only when the
+/// `enable_log` feature is enabled - which the default features do.
+#[cfg(feature = "enable_log")]
+fn init_log() {
+    // A logger that is already installed - by the simulator or by the test
+    // process - is not an error: the messages are emitted all the same.
+    let _ = ckb_std::logger::init();
 }
 
 fn run() -> Result<(), Error> {
@@ -48,6 +74,11 @@ fn run() -> Result<(), Error> {
         // Withdrawing a vote: the cell is consumed and its capacity recycled.
         // This path does not depend on the proposal or on the config cell, so a
         // voter can always take the capacity back.
+        #[cfg(feature = "enable_log")]
+        log!(
+            Level::Info,
+            "the vote is withdrawn and its capacity recycled"
+        );
         return Ok(());
     }
     if outputs > 1 {
@@ -64,6 +95,13 @@ fn run() -> Result<(), Error> {
     if declared_amount == 0 {
         return Err(Error::VoteDataInvalid);
     }
+    #[cfg(feature = "enable_log")]
+    log!(
+        Level::Info,
+        "new vote: direction {}, {} shannons",
+        direction,
+        declared_amount
+    );
 
     let vote_lock = load_cell_lock(0, Source::GroupOutput).map_err(|_| Error::SyscallError)?;
     let vote_lock_hash = hash::script_hash(&vote_lock);
@@ -102,6 +140,8 @@ fn run() -> Result<(), Error> {
         // The deposit must predate the proposal, which makes the "vote,
         // withdraw and vote again" trick impossible.
         if proposal::block_number_of(index)? >= proposal.block_number {
+            #[cfg(feature = "enable_log")]
+            warn!("a DAO deposit created after the proposal may not be used to vote");
             return Err(Error::DaoDepositTooNew);
         }
         let capacity =
