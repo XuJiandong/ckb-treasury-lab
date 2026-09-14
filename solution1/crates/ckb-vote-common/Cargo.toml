@@ -1,0 +1,9 @@
+[package]
+name = "ckb-vote-common"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ckb-std = { version = "1.1", features = ["type-id"] }
+ckb-hash = { version = "1.1", default-features = false, features = ["ckb-contract"] }
+ckb-vote-types = { path = "../ckb-vote-types" }

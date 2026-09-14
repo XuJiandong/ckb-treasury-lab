@@ -25,6 +25,7 @@ The following conventions are used in design and spec documents.
 - ckb-blake160-hash: the leading 20 bytes of ckb-hash.
 - A config cell is used for this voting system. Any field can be referred to as `config.<field>`. During processing, the script first loads the predefined config cell and then reads the field in molecule format.
 - The metric flag of all `since` values should be set to block number (00). See [more](https://github.com/nervosnetwork/rfcs/blob/master/rfcs/0017-tx-valid-since/0017-tx-valid-since.md).
+- Basic molecule type pre-defined [here](https://github.com/nervosnetwork/ckb/blob/develop/util/gen-types/schemas/blockchain.mol).
 
 
 ## Processing
@@ -102,6 +103,10 @@ The proposal, finalized proposal, and passed proposal cells share the same type 
 The vote cell has the vote type script; see details in [vote type script spec](./vote-type-script-spec.md).
 
 The counting cell has the counting type script; see details in [counting type script spec](./counting-type-script-spec.md).
+
+## Config Cell
+The config type script and config cell should be deployed before the other type scripts. The ckb-blake160-hash of the config type script should be set in the `args` of the proposal type script. All related config fields should be read from this config cell.
+
 
 
 ## Diagram

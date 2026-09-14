@@ -1,0 +1,147 @@
+//! Vote type script.
+//!
+//! See `docs/vote-type-script-spec.md`.
+//!
+//! A vote cell is cast by a DAO owner:
+//!
+//! * `args` is `blake160(proposal_type_script)`, so the vote is bound to a
+//!   single proposal;
+//! * the vote cell lock script must be unlocked by one of the inputs, which
+//!   proves the ownership of the DAO deposits listed in `cell_deps`;
+//! * `vote_amount` must equal the sum of the capacities of those deposits, and
+//!   every deposit must predate the proposal cell;
+//! * exactly one vote cell per proposal may be created in a transaction, since
+//!   all the vote cells of one proposal share the same type script (and hence
+//!   the same script group).
+//!
+//! Consuming a vote cell simply recycles its capacity: a vote can be withdrawn
+//! at any time.
+
+#![cfg_attr(not(any(feature = "library", test)), no_std)]
+#![cfg_attr(not(test), no_main)]
+
+#[cfg(any(feature = "library", test))]
+extern crate alloc;
+
+#[cfg(not(any(feature = "library", test)))]
+ckb_std::entry!(program_entry);
+#[cfg(not(any(feature = "library", test)))]
+// By default, the following heap configuration is used:
+// * 16KB fixed heap
+// * 1.2MB(rounded up to be 16-byte aligned) dynamic heap
+// * Minimal memory block in dynamic heap is 64 bytes
+// For more details, please refer to ckb-std's default_alloc macro
+// and the buddy-alloc alloc implementation.
+ckb_std::default_alloc!(16384, 1258306, 64);
+
+use ckb_std::{
+    ckb_constants::Source,
+    ckb_types::{packed::Script, prelude::Entity},
+    high_level::{
+        load_cell_capacity, load_cell_data, load_cell_lock, load_cell_lock_hash, load_cell_type,
+        load_cell_type_hash, load_script, QueryIter,
+    },
+};
+use ckb_vote_common::{
+    config::{self, u64_of},
+    deployment, error::Error, hash, proposal, rc, status,
+};
+use ckb_vote_types::molecules::types::Vote;
+
+pub fn program_entry() -> i8 {
+    rc(run())
+}
+
+fn run() -> Result<(), Error> {
+    let script = load_script().map_err(|_| Error::SyscallError)?;
+    let proposal_id: [u8; 20] = script
+        .args()
+        .raw_data()
+        .as_ref()
+        .try_into()
+        .map_err(|_| Error::ArgsInvalid)?;
+
+    // Every path of every voting script fails once the system is halted.
+    config::ensure_running()?;
+
+    let outputs = QueryIter::new(load_cell_type_hash, Source::GroupOutput).count();
+    if outputs == 0 {
+        // Withdrawing a vote: the cell is consumed and its capacity recycled.
+        return Ok(());
+    }
+    if outputs > 1 {
+        return Err(Error::MultipleVoteCells);
+    }
+
+    let vote_data = load_cell_data(0, Source::GroupOutput).map_err(|_| Error::VoteDataInvalid)?;
+    let vote = Vote::from_slice(&vote_data).map_err(|_| Error::VoteDataInvalid)?;
+    let direction = vote.direction().as_slice()[0];
+    if direction != status::DIRECTION_NO && direction != status::DIRECTION_YES {
+        return Err(Error::VoteDataInvalid);
+    }
+    let declared_amount = u64_of(vote.vote_amount());
+    if declared_amount == 0 {
+        return Err(Error::VoteDataInvalid);
+    }
+
+    let vote_lock = load_cell_lock(0, Source::GroupOutput).map_err(|_| Error::SyscallError)?;
+    let vote_lock_hash = hash::script_hash(&vote_lock);
+    // The vote cell represents the DAO owner, so its lock script must be
+    // unlocked by the transaction.
+    if !QueryIter::new(load_cell_lock_hash, Source::Input)
+        .any(|lock_hash| lock_hash == vote_lock_hash)
+    {
+        return Err(Error::VoterLockNotUnlocked);
+    }
+
+    // A vote is only valid while the proposal is open.
+    let proposal = proposal::find_proposal(&proposal_id)?;
+    if proposal.status != status::PROPOSAL_STATUS_OPEN {
+        return Err(Error::ProposalNotOpen);
+    }
+
+    // Sum up the voter's DAO deposits and compare them with the declared amount.
+    let mut total_amount = 0u64;
+    let mut deposit_count = 0usize;
+    for (index, type_script) in QueryIter::new(load_cell_type, Source::CellDep).enumerate() {
+        let Some(type_script) = type_script else {
+            continue;
+        };
+        if !is_dao_type_script(&type_script) {
+            continue;
+        }
+        let lock_hash =
+            load_cell_lock_hash(index, Source::CellDep).map_err(|_| Error::SyscallError)?;
+        if lock_hash != vote_lock_hash {
+            continue;
+        }
+        // The deposit must predate the proposal, which makes the "vote,
+        // withdraw and vote again" trick impossible.
+        if proposal::block_number_of(index)? >= proposal.block_number {
+            return Err(Error::DaoDepositTooNew);
+        }
+        let capacity =
+            load_cell_capacity(index, Source::CellDep).map_err(|_| Error::SyscallError)?;
+        total_amount = total_amount
+            .checked_add(capacity)
+            .ok_or(Error::AmountOverflow)?;
+        deposit_count += 1;
+    }
+
+    if deposit_count == 0 {
+        return Err(Error::DaoDepositMissing);
+    }
+    if total_amount != declared_amount {
+        return Err(Error::VoteAmountMismatch);
+    }
+    Ok(())
+}
+
+/// Tells whether a type script is the Nervos DAO type script (RFC 0024).
+fn is_dao_type_script(type_script: &Script) -> bool {
+    config::script_matches(
+        type_script,
+        &deployment::DAO_TYPE_SCRIPT_CODE_HASH,
+        deployment::DAO_TYPE_SCRIPT_HASH_TYPE,
+    )
+}

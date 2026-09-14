@@ -16,8 +16,8 @@ No Witness is required.
 The cell data has the following structure in molecule format:
 ```
 table Counting {
-    start_hash: Bytes2,
-    end_hash: Bytes2,
+    start_hash: Byte2,
+    end_hash: Byte2,
     direction: byte,
     vote_amount: Uint64,
 }

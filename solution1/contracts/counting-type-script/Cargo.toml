@@ -1,0 +1,13 @@
+[package]
+name = "counting-type-script"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ckb-std = "1.1"
+ckb-vote-common = { path = "../../crates/ckb-vote-common" }
+ckb-vote-types = { path = "../../crates/ckb-vote-types" }
+
+[features]
+library = []
+native-simulator = ["library", "ckb-std/native-simulator"]

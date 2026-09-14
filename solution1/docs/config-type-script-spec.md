@@ -22,16 +22,18 @@ It has following structures in molecule format:
 ```
 table VotingConfig {
     emergent_halt: byte,
-    vote_code_hash: Bytes32,
+    vote_code_hash: Byte32,
     vote_hash_type: byte,
-    counting_code_hash: Bytes32,
+    counting_code_hash: Byte32,
     counting_hash_type: byte,
+    always_success_code_hash: Byte32,
+    always_success_hash_type: byte,
     yes_threshold: Uint64,
     minimal_proposal_capacity: Uint64,
     vote_duration: Uint64,
     vote_window: Uint64,
     challenge_time: Uint64,
-    veto_lock_script_hash: Bytes32,
+    veto_lock_script_hash: Byte32,
 }
 ```
 

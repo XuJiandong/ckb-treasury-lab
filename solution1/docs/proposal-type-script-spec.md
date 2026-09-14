@@ -7,10 +7,12 @@ The script has the following structure:
 ```
 code_hash: <code_hash to proposal type script>
 hash_type: <hash_type to proposal type script>
-args: <20 bytes, Type ID like args>
+args: <20 bytes, ckb-blake160-hash of config type script> <20 bytes, Type ID like args>
 ```
 
-The `args` is the ckb-blake160-hash of the first CellInput structure of the creating transaction, combined with the output index of the cell. This makes the script unique across the entire blockchain. This mechanics is used in [Type ID](https://github.com/nervosnetwork/rfcs/blob/master/rfcs/0022-transaction-structure/0022-transaction-structure.md#type-id).
+The first 20 bytes point to a config cell, identified by the ckb-blake160-hash of its type script. All related config fields, including vote type scripts and counting type scripts, should be read from this config cell.
+
+The latter 20 bytes `args` are the ckb-blake160-hash of the first CellInput structure of the creating transaction, combined with the output index of the cell. This makes the script unique across the entire blockchain. This mechanism is used in [Type ID](https://github.com/nervosnetwork/rfcs/blob/master/rfcs/0022-transaction-structure/0022-transaction-structure.md#type-id).
 
 ## Cell Data
 The corresponding cell data has the following structure in molecule format:
