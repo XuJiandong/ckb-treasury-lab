@@ -1,21 +1,6 @@
 //! Vote type script.
 //!
 //! See `docs/vote-type-script-spec.md`.
-//!
-//! A vote cell is cast by a DAO owner:
-//!
-//! * `args` is `blake160(proposal_type_script)`, so the vote is bound to a
-//!   single proposal;
-//! * the vote cell lock script must be unlocked by one of the inputs, which
-//!   proves the ownership of the DAO deposits listed in `cell_deps`;
-//! * `vote_amount` must equal the sum of the capacities of those deposits, and
-//!   every deposit must predate the proposal cell;
-//! * exactly one vote cell per proposal may be created in a transaction, since
-//!   all the vote cells of one proposal share the same type script (and hence
-//!   the same script group).
-//!
-//! Consuming a vote cell simply recycles its capacity: a vote can be withdrawn
-//! at any time.
 
 #![cfg_attr(not(any(feature = "library", test)), no_std)]
 #![cfg_attr(not(test), no_main)]
@@ -26,25 +11,22 @@ extern crate alloc;
 #[cfg(not(any(feature = "library", test)))]
 ckb_std::entry!(program_entry);
 #[cfg(not(any(feature = "library", test)))]
-// By default, the following heap configuration is used:
-// * 16KB fixed heap
-// * 1.2MB(rounded up to be 16-byte aligned) dynamic heap
-// * Minimal memory block in dynamic heap is 64 bytes
-// For more details, please refer to ckb-std's default_alloc macro
-// and the buddy-alloc alloc implementation.
+
 ckb_std::default_alloc!(16384, 1258306, 64);
 
 use ckb_std::{
     ckb_constants::Source,
     ckb_types::{packed::Script, prelude::Entity},
     high_level::{
-        load_cell_capacity, load_cell_data, load_cell_lock, load_cell_lock_hash, load_cell_type,
-        load_cell_type_hash, load_script, QueryIter,
+        QueryIter, load_cell_capacity, load_cell_data, load_cell_lock, load_cell_lock_hash,
+        load_cell_type, load_cell_type_hash, load_script,
     },
 };
 use ckb_vote_common::{
     config::{self, u64_of},
-    deployment, error::Error, hash, proposal, rc, status,
+    constants,
+    error::Error,
+    hash, proposal, rc, status,
 };
 use ckb_vote_types::molecules::types::Vote;
 
@@ -54,19 +36,18 @@ pub fn program_entry() -> i8 {
 
 fn run() -> Result<(), Error> {
     let script = load_script().map_err(|_| Error::SyscallError)?;
-    let proposal_id: [u8; 20] = script
+    let proposal_id: [u8; constants::PROPOSAL_ID_LEN] = script
         .args()
         .raw_data()
         .as_ref()
         .try_into()
         .map_err(|_| Error::ArgsInvalid)?;
 
-    // Every path of every voting script fails once the system is halted.
-    config::ensure_running()?;
-
     let outputs = QueryIter::new(load_cell_type_hash, Source::GroupOutput).count();
     if outputs == 0 {
         // Withdrawing a vote: the cell is consumed and its capacity recycled.
+        // This path does not depend on the proposal or on the config cell, so a
+        // voter can always take the capacity back.
         return Ok(());
     }
     if outputs > 1 {
@@ -94,8 +75,11 @@ fn run() -> Result<(), Error> {
         return Err(Error::VoterLockNotUnlocked);
     }
 
-    // A vote is only valid while the proposal is open.
+    // A vote is only valid while the proposal is open. The proposal type script
+    // also points at the config cell, which every voting script has to consult:
+    // it fails as soon as the system is halted.
     let proposal = proposal::find_proposal(&proposal_id)?;
+    config::ensure_running(&proposal.config_id)?;
     if proposal.status != status::PROPOSAL_STATUS_OPEN {
         return Err(Error::ProposalNotOpen);
     }
@@ -141,7 +125,7 @@ fn run() -> Result<(), Error> {
 fn is_dao_type_script(type_script: &Script) -> bool {
     config::script_matches(
         type_script,
-        &deployment::DAO_TYPE_SCRIPT_CODE_HASH,
-        deployment::DAO_TYPE_SCRIPT_HASH_TYPE,
+        &constants::DAO_TYPE_SCRIPT_CODE_HASH,
+        constants::DAO_TYPE_SCRIPT_HASH_TYPE,
     )
 }

@@ -2,33 +2,6 @@
 //!
 //! See `docs/proposal-type-script-spec.md`.
 //!
-//! The same type script identifies the three states of a proposal, which is
-//! encoded in the `status` field of the cell data:
-//!
-//! ```text
-//!                    +------------------------------+
-//!   create           |  open (0)                    |
-//!   (Type ID args)   |  lock = initiator            |
-//!                    +------------------------------+
-//!                             |
-//!                             | since > config.vote_duration
-//!                             | + "YES" counting cells >= config.yes_threshold
-//!                             v
-//!                    +------------------------------+
-//!   challenge -----> |  finalized (1)               | -----> recycle (since >
-//!   veto      -----> |  lock = always success       |        vote_duration +
-//!                    +------------------------------+        challenge_time)
-//!                             |
-//!                             | since > config.challenge_time
-//!                             v
-//!                    +------------------------------+
-//!                    |  passed (2)                  |
-//!                    +------------------------------+
-//! ```
-//!
-//! `description` and `applied_amount` are frozen when the proposal is created:
-//! they are what the voters decide on. The bond (`capacity`) is preserved by
-//! the finalized transition, since it is the challenger's incentive.
 
 #![cfg_attr(not(any(feature = "library", test)), no_std)]
 #![cfg_attr(not(test), no_main)]
@@ -39,12 +12,6 @@ extern crate alloc;
 #[cfg(not(any(feature = "library", test)))]
 ckb_std::entry!(program_entry);
 #[cfg(not(any(feature = "library", test)))]
-// By default, the following heap configuration is used:
-// * 16KB fixed heap
-// * 1.2MB(rounded up to be 16-byte aligned) dynamic heap
-// * Minimal memory block in dynamic heap is 64 bytes
-// For more details, please refer to ckb-std's default_alloc macro
-// and the buddy-alloc alloc implementation.
 ckb_std::default_alloc!(16384, 1258306, 64);
 
 use alloc::vec::Vec;
@@ -53,17 +20,20 @@ use ckb_std::{
     ckb_constants::Source,
     ckb_types::{packed::Script, prelude::Entity},
     high_level::{
-        load_cell_capacity, load_cell_data, load_cell_lock, load_cell_lock_hash, load_cell_type,
-        load_cell_type_hash, load_input_since, load_script, QueryIter,
+        QueryIter, load_cell_capacity, load_cell_data, load_cell_lock, load_cell_lock_hash,
+        load_cell_type, load_cell_type_hash, load_input_since, load_script,
     },
 };
 use ckb_vote_common::{
-    config::{self, u64_of, Config},
-    deployment::{self, TYPE_ID_ARGS_LEN},
+    config::{Config, u64_of},
+    constants::{CONFIG_ID_LEN, PROPOSAL_ARGS_LEN, TYPE_ID_LEN},
     error::Error,
-    hash, rc, since, status,
+    hash, range, rc, since, status,
 };
 use ckb_vote_types::molecules::types::{Counting, ProposalCellData};
+
+/// The length of `recipient_lock_hash`: the ckb-blake160-hash of a lock script.
+const RECIPIENT_LOCK_HASH_LEN: usize = 20;
 
 pub fn program_entry() -> i8 {
     rc(run())
@@ -71,9 +41,13 @@ pub fn program_entry() -> i8 {
 
 fn run() -> Result<(), Error> {
     let script = load_script().map_err(|_| Error::SyscallError)?;
-    if script.args().raw_data().len() != TYPE_ID_ARGS_LEN {
+    // `args` is `blake160(config type script) || Type ID`.
+    let args = script.args().raw_data();
+    if args.len() != PROPOSAL_ARGS_LEN {
         return Err(Error::ArgsInvalid);
     }
+    let mut config_id = [0u8; CONFIG_ID_LEN];
+    config_id.copy_from_slice(&args[..CONFIG_ID_LEN]);
 
     // The type script of a proposal is a Type ID, so at most one proposal cell
     // can exist. Both counters are therefore 0 or 1, and a transaction that
@@ -82,22 +56,23 @@ fn run() -> Result<(), Error> {
     let outputs = QueryIter::new(load_cell_type_hash, Source::GroupOutput).count();
     match (inputs, outputs) {
         // A brand new proposal.
-        (0, 1) => create(),
+        (0, 1) => create(&config_id),
         // A proposal being updated: open -> finalized, or finalized -> passed.
-        (1, 1) => update(&script),
+        (1, 1) => update(&script, &config_id),
         // A proposal being settled: recycled, vetoed, challenged or granted.
-        (1, 0) => settle(&script),
+        (1, 0) => settle(&script, &config_id),
         _ => Err(Error::ProposalStatusInvalid),
     }
 }
 
 /// Creates a proposal cell.
-fn create() -> Result<(), Error> {
-    let config = Config::load()?;
+fn create(config_id: &[u8; CONFIG_ID_LEN]) -> Result<(), Error> {
+    let config = Config::load(config_id)?;
 
-    // The args are derived from the first input and the output index, which is
-    // what makes the proposal unique on the chain.
-    ckb_std::type_id::check_type_id(0, TYPE_ID_ARGS_LEN).map_err(|_| Error::TypeIdInvalid)?;
+    // The tail of the args is derived from the first input and the output index,
+    // which is what makes the proposal unique on the chain.
+    ckb_std::type_id::check_type_id(CONFIG_ID_LEN, TYPE_ID_LEN)
+        .map_err(|_| Error::TypeIdInvalid)?;
 
     let proposal = read_proposal_data(Source::GroupOutput)?;
     if proposal.status().as_slice()[0] != status::PROPOSAL_STATUS_OPEN {
@@ -117,30 +92,33 @@ fn create() -> Result<(), Error> {
 }
 
 /// Updates a proposal cell: `open -> finalized` or `finalized -> passed`.
-fn update(script: &Script) -> Result<(), Error> {
-    let config = Config::load()?;
+fn update(script: &Script, config_id: &[u8; CONFIG_ID_LEN]) -> Result<(), Error> {
+    let config = Config::load(config_id)?;
     let input = read_proposal_data(Source::GroupInput)?;
     let output = read_proposal_data(Source::GroupOutput)?;
 
-    // What the voters decide on may not be rewritten after the fact.
-    if u64_of(input.applied_amount()) != u64_of(output.applied_amount())
+    // What the voters decide on may not be rewritten after the fact: the
+    // description, the requested amount and the recipient of the grant.
+    if u64_of(input.requested_amount()) != u64_of(output.requested_amount())
         || input.description().as_slice() != output.description().as_slice()
+        || input.recipient_lock_hash().as_slice() != output.recipient_lock_hash().as_slice()
     {
         return Err(Error::ProposalFieldsChanged);
     }
 
     let since = load_input_since(0, Source::GroupInput).map_err(|_| Error::SyscallError)?;
 
-    match (
-        input.status().as_slice()[0],
-        output.status().as_slice()[0],
-    ) {
-        (status::PROPOSAL_STATUS_OPEN, status::PROPOSAL_STATUS_FINALIZED) => {
-            finalize(script, &config, since::relative_block_number(since)?, &output)
-        }
+    match (input.status().as_slice()[0], output.status().as_slice()[0]) {
+        (status::PROPOSAL_STATUS_OPEN, status::PROPOSAL_STATUS_FINALIZED) => finalize(
+            script,
+            &config,
+            since::relative_block_number(since)?,
+            &output,
+        ),
         (status::PROPOSAL_STATUS_FINALIZED, status::PROPOSAL_STATUS_PASSED) => {
-            if since::relative_block_number(since)? <= since::block_duration(config.challenge_time)?
-            {
+            // `challenge_time` is a block count, directly comparable with the
+            // block number carried by the relative `since`.
+            if since::relative_block_number(since)? <= config.challenge_time {
                 return Err(Error::ChallengeTimeNotElapsed);
             }
             Ok(())
@@ -157,7 +135,9 @@ fn finalize(
     elapsed: u64,
     output: &ProposalCellData,
 ) -> Result<(), Error> {
-    if elapsed <= since::block_duration(config.vote_duration)? {
+    // `vote_duration` is a block count, directly comparable with the block
+    // number carried by the relative `since` of the proposal input.
+    if elapsed <= config.vote_duration {
         return Err(Error::VoteDurationNotElapsed);
     }
 
@@ -173,7 +153,7 @@ fn finalize(
     // The finalized cell must be spendable by anyone, otherwise it could not be
     // challenged.
     let lock = load_cell_lock(0, Source::GroupOutput).map_err(|_| Error::SyscallError)?;
-    if !is_always_success_lock(&lock) {
+    if !config.is_always_success_lock(&lock) {
         return Err(Error::AlwaysSuccessLockRequired);
     }
 
@@ -192,13 +172,15 @@ fn finalize(
 }
 
 /// Settles a proposal by consuming it without any proposal output.
-fn settle(script: &Script) -> Result<(), Error> {
-    let config = Config::load()?;
+fn settle(script: &Script, config_id: &[u8; CONFIG_ID_LEN]) -> Result<(), Error> {
+    let config = Config::load(config_id)?;
     let proposal = read_proposal_data(Source::GroupInput)?;
 
     match proposal.status().as_slice()[0] {
-        // A passed proposal is settled by whoever applies the grant.
-        status::PROPOSAL_STATUS_PASSED => Ok(()),
+        // Receiving the assets: the passed proposal is consumed entirely and the
+        // transaction has to deliver `requested_amount` to `recipient_lock_hash`.
+        // The assets themselves come from the treasury, which is out of scope.
+        status::PROPOSAL_STATUS_PASSED => grant(&proposal),
         // An open proposal that never made it can only be recycled by its
         // initiator, once the voting and challenge windows are over.
         status::PROPOSAL_STATUS_OPEN => {
@@ -232,6 +214,42 @@ fn settle(script: &Script) -> Result<(), Error> {
     }
 }
 
+/// Receives the assets of a passed proposal.
+///
+/// The proposal cell is consumed entirely (this branch is the `1 in / 0 out`
+/// one: no proposal output may be created), and the transaction has to deliver
+/// the grant to the recipient: an output whose lock script hashes to
+/// `recipient_lock_hash` and that holds at least `requested_amount`.
+///
+/// The assets themselves come from a treasury provider, which is not described
+/// in the specification and therefore not checked here.
+fn grant(proposal: &ProposalCellData) -> Result<(), Error> {
+    let requested_amount = u64_of(proposal.requested_amount());
+    // `recipient_lock_hash` is 20 bytes: the ckb-blake160-hash of the recipient
+    // lock script, that is the leading bytes of the ckb-hash of that script.
+    let mut recipient_lock_hash = [0u8; RECIPIENT_LOCK_HASH_LEN];
+    recipient_lock_hash.copy_from_slice(proposal.recipient_lock_hash().as_slice());
+
+    let mut recipient_found = false;
+    for (index, lock_hash) in QueryIter::new(load_cell_lock_hash, Source::Output).enumerate() {
+        if lock_hash[..RECIPIENT_LOCK_HASH_LEN] != recipient_lock_hash {
+            continue;
+        }
+        recipient_found = true;
+        let capacity =
+            load_cell_capacity(index, Source::Output).map_err(|_| Error::SyscallError)?;
+        if capacity >= requested_amount {
+            return Ok(());
+        }
+    }
+
+    if recipient_found {
+        Err(Error::RecipientAmountTooSmall)
+    } else {
+        Err(Error::RecipientOutputMissing)
+    }
+}
+
 /// The aggregation of the counting cells referenced by a transaction.
 struct Tally {
     /// The sum of the `vote_amount` fields of the counting cells.
@@ -247,16 +265,14 @@ struct Tally {
 /// cell. Each counting cell is a certificate that was validated by the counting
 /// type script when it was created, so summing their `vote_amount` is enough.
 ///
-/// The hash ranges of the cells must not overlap, which is what makes the sum
-/// meaningful: a voter can only be counted once across all the batches.
-fn collect_counting_cells(
-    script: &Script,
-    config: &Config,
-    direction: u8,
-) -> Result<Tally, Error> {
+/// The hash ranges of the cells must not overlap: two ranges `[h1, h2]` and
+/// `[h3, h4]` overlap when some value satisfies `h1 <= v <= h2` and
+/// `h3 <= v <= h4`. That is what makes the sum meaningful, since a voter whose
+/// lock hash prefix belongs to both ranges could otherwise be counted twice.
+fn collect_counting_cells(script: &Script, config: &Config, direction: u8) -> Result<Tally, Error> {
     // The counting cells point back at this very proposal cell.
     let proposal_id = hash::script_id(script);
-    let mut ranges: Vec<(u16, u16)> = Vec::new();
+    let mut ranges: Vec<range::HashRange> = Vec::new();
     let mut total_amount = 0u64;
 
     for source in [Source::Input, Source::CellDep] {
@@ -275,21 +291,17 @@ fn collect_counting_cells(
             if counting.direction().as_slice()[0] != direction {
                 return Err(Error::CountingCellInvalid);
             }
-            let start = read_u16(counting.start_hash().as_slice());
-            let end = read_u16(counting.end_hash().as_slice());
-            if start > end {
-                return Err(Error::CountingCellInvalid);
-            }
-            ranges.push((start, end));
+            // Every hash range has to satisfy `start_hash <= end_hash`;
+            // `HashRange::new` enforces it.
+            let hash_range = read_hash_range(&counting)?;
+            ranges.push(hash_range);
             total_amount = total_amount
                 .checked_add(u64_of(counting.vote_amount()))
                 .ok_or(Error::AmountOverflow)?;
         }
     }
 
-    // Inclusive ranges must be disjoint: sorted ranges may not touch.
-    ranges.sort_unstable();
-    if ranges.windows(2).any(|pair| pair[1].0 <= pair[0].1) {
+    if range::any_overlap(&mut ranges) {
         return Err(Error::CountingRangeOverlap);
     }
 
@@ -304,8 +316,10 @@ fn collect_counting_cells(
 fn recycle_elapsed(config: &Config) -> Result<bool, Error> {
     let since = load_input_since(0, Source::GroupInput).map_err(|_| Error::SyscallError)?;
     let elapsed = since::relative_block_number(since)?;
-    let total = since::block_duration(config.vote_duration)?
-        .checked_add(since::block_duration(config.challenge_time)?)
+    // Both config fields are block counts.
+    let total = config
+        .vote_duration
+        .checked_add(config.challenge_time)
         .ok_or(Error::AmountOverflow)?;
     Ok(elapsed > total)
 }
@@ -316,26 +330,20 @@ fn vetoed(config: &Config) -> Result<bool, Error> {
         .any(|lock_hash| lock_hash == config.veto_lock_script_hash))
 }
 
-/// Tells whether a lock script is the `always success` lock.
-///
-/// The finalized proposal cell has to be spendable by anyone. When the
-/// deployment pinned the lock script code hash it is matched exactly; otherwise
-/// any lock script without args is accepted, see [`ckb_vote_common::deployment`].
-fn is_always_success_lock(lock: &Script) -> bool {
-    if deployment::always_success_is_pinned() {
-        config::script_matches(
-            lock,
-            &deployment::ALWAYS_SUCCESS_CODE_HASH,
-            deployment::ALWAYS_SUCCESS_HASH_TYPE,
-        )
-    } else {
-        lock.args().raw_data().is_empty()
-    }
-}
-
 fn read_proposal_data(source: Source) -> Result<ProposalCellData, Error> {
     let data = load_cell_data(0, source).map_err(|_| Error::ProposalDataInvalid)?;
     ProposalCellData::from_slice(&data).map_err(|_| Error::ProposalDataInvalid)
+}
+
+/// Reads the inclusive hash range `[start_hash, end_hash]` of a counting cell.
+///
+/// Fails with [`Error::CountingRangeInvalid`] when the range does not satisfy
+/// `start_hash <= end_hash`.
+fn read_hash_range(counting: &Counting) -> Result<range::HashRange, Error> {
+    range::HashRange::new(
+        read_u16(counting.start_hash().as_slice()),
+        read_u16(counting.end_hash().as_slice()),
+    )
 }
 
 /// Reads a 2 byte hash range boundary as a big endian `u16`.

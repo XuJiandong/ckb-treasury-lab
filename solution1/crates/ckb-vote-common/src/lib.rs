@@ -7,17 +7,18 @@
 //! * `vote-type-script`: a DAO backed vote cell;
 //! * `counting-type-script`: an aggregated batch of vote cells.
 //!
-//! Every script reads its parameters from the config cell, so the loading logic
-//! (and the deployment parameters it needs) lives here instead of being
-//! duplicated four times.
-#![no_std]
+//! Every script reads its parameters from the config cell - which it locates
+//! through the hash stored in its `args` - so the loading logic lives here
+//! instead of being duplicated four times.
+#![cfg_attr(not(test), no_std)]
 extern crate alloc;
 
 pub mod config;
-pub mod deployment;
+pub mod constants;
 pub mod error;
 pub mod hash;
 pub mod proposal;
+pub mod range;
 pub mod since;
 pub mod status;
 

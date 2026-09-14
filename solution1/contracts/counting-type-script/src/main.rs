@@ -1,23 +1,6 @@
 //! Counting type script.
 //!
 //! See `docs/counting-type-script-spec.md`.
-//!
-//! A counting cell aggregates a batch of vote cells so that the tally does not
-//! have to fit into a single transaction:
-//!
-//! * `args` is `blake160(proposal_type_script)`;
-//! * the referenced proposal cell must be alive (open, or finalized during the
-//!   challenge phase) and is found in `cell_deps`;
-//! * every vote cell listed in `cell_deps` must belong to that proposal, use
-//!   the same direction, have a lock script whose hash starts with a 2 byte
-//!   value inside `[start_hash, end_hash]`, and have been created no later than
-//!   `config.vote_window` blocks after the proposal cell;
-//! * the voter locks must be unique, and their summed amounts must equal
-//!   `vote_amount`, which is what makes the cell a self contained certificate
-//!   that the proposal script can later aggregate without re-reading the votes.
-//!
-//! Counting cells are immutable: they can be created or consumed, never
-//! updated, so a certificate can not be rewritten after the fact.
 
 #![cfg_attr(not(any(feature = "library", test)), no_std)]
 #![cfg_attr(not(test), no_main)]
@@ -28,12 +11,6 @@ extern crate alloc;
 #[cfg(not(any(feature = "library", test)))]
 ckb_std::entry!(program_entry);
 #[cfg(not(any(feature = "library", test)))]
-// By default, the following heap configuration is used:
-// * 16KB fixed heap
-// * 1.2MB(rounded up to be 16-byte aligned) dynamic heap
-// * Minimal memory block in dynamic heap is 64 bytes
-// For more details, please refer to ckb-std's default_alloc macro
-// and the buddy-alloc alloc implementation.
 ckb_std::default_alloc!(16384, 1258306, 64);
 
 use alloc::vec::Vec;
@@ -42,14 +19,15 @@ use ckb_std::{
     ckb_constants::Source,
     ckb_types::prelude::Entity,
     high_level::{
-        load_cell_data, load_cell_lock_hash, load_cell_type, load_cell_type_hash, load_script,
-        QueryIter,
+        QueryIter, load_cell_data, load_cell_lock_hash, load_cell_type, load_cell_type_hash,
+        load_script,
     },
 };
 use ckb_vote_common::{
-    config::{u64_of, Config},
+    config::{Config, u64_of},
+    constants,
     error::Error,
-    proposal, rc, since, status,
+    proposal, range, rc, status,
 };
 use ckb_vote_types::molecules::types::{Counting, Vote};
 
@@ -59,7 +37,7 @@ pub fn program_entry() -> i8 {
 
 fn run() -> Result<(), Error> {
     let script = load_script().map_err(|_| Error::SyscallError)?;
-    let proposal_id: [u8; 20] = script
+    let proposal_id: [u8; constants::PROPOSAL_ID_LEN] = script
         .args()
         .raw_data()
         .as_ref()
@@ -78,32 +56,34 @@ fn run() -> Result<(), Error> {
 }
 
 /// Validates a freshly created counting cell.
-fn create(proposal_id: &[u8; 20]) -> Result<(), Error> {
-    let config = Config::load()?;
-
+fn create(proposal_id: &[u8; constants::PROPOSAL_ID_LEN]) -> Result<(), Error> {
     let data = load_cell_data(0, Source::GroupOutput).map_err(|_| Error::CountingDataInvalid)?;
     let counting = Counting::from_slice(&data).map_err(|_| Error::CountingDataInvalid)?;
     let direction = counting.direction().as_slice()[0];
     if direction != status::DIRECTION_NO && direction != status::DIRECTION_YES {
         return Err(Error::CountingDataInvalid);
     }
-    let start_hash = read_u16(counting.start_hash().as_slice());
-    let end_hash = read_u16(counting.end_hash().as_slice());
-    if start_hash > end_hash {
-        return Err(Error::CountingRangeInvalid);
-    }
+    // Every hash range has to satisfy `start_hash <= end_hash`;
+    // `HashRange::new` enforces it.
+    let hash_range = read_hash_range(&counting)?;
     let declared_amount = u64_of(counting.vote_amount());
 
     // The proposal cell is referenced through the cell deps, exactly like in the
-    // challenge phase where the already finalized cell is used.
+    // challenge phase where the already finalized cell is used. It also carries
+    // the pointer to the config cell.
     let proposal = proposal::find_proposal(proposal_id)?;
-    if proposal.status > status::PROPOSAL_STATUS_FINALIZED {
+    let config = Config::load(&proposal.config_id)?;
+    if proposal.status != status::PROPOSAL_STATUS_OPEN
+        && proposal.status != status::PROPOSAL_STATUS_FINALIZED
+    {
         return Err(Error::ProposalStatusInvalidForCounting);
     }
 
     // "YES" votes are counted before the proposal is consumed, "NO" votes are
     // counted for a challenge; both need the vote cells as cell deps.
-    let vote_window = since::block_duration(config.vote_window)?;
+    // `vote_window` is a block count, directly comparable with the block
+    // numbers of the proposal and vote cells.
+    let vote_window = config.vote_window;
     let mut voter_locks: Vec<[u8; 32]> = Vec::new();
     let mut total_amount = 0u64;
 
@@ -126,11 +106,11 @@ fn create(proposal_id: &[u8; 20]) -> Result<(), Error> {
             return Err(Error::VoteDirectionMismatch);
         }
 
-        // The 2 byte prefix of the voter lock hash slices the voters into ranges.
+        // The 2 byte prefix of the voter lock hash slices the voters into
+        // ranges; both bounds of `[start_hash, end_hash]` are included.
         let lock_hash =
             load_cell_lock_hash(index, Source::CellDep).map_err(|_| Error::VoteCellInvalid)?;
-        let lock_prefix = read_u16(&lock_hash[..2]);
-        if lock_prefix < start_hash || lock_prefix > end_hash {
+        if !hash_range.contains(read_u16(&lock_hash[..2])) {
             return Err(Error::VoteLockOutOfRange);
         }
 
@@ -163,6 +143,17 @@ fn create(proposal_id: &[u8; 20]) -> Result<(), Error> {
         return Err(Error::VoteLockNotUnique);
     }
     Ok(())
+}
+
+/// Reads the inclusive hash range `[start_hash, end_hash]` of this cell.
+///
+/// Fails with [`Error::CountingRangeInvalid`] when the range does not satisfy
+/// `start_hash <= end_hash`.
+fn read_hash_range(counting: &Counting) -> Result<range::HashRange, Error> {
+    range::HashRange::new(
+        read_u16(counting.start_hash().as_slice()),
+        read_u16(counting.end_hash().as_slice()),
+    )
 }
 
 /// Reads a 2 byte hash range boundary as a big endian `u16`.

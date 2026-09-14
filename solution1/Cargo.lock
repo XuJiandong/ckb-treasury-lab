@@ -662,7 +662,6 @@ version = "0.1.0"
 dependencies = [
  "ckb-std",
  "ckb-vote-common",
- "ckb-vote-types",
 ]
 
 [[package]]
@@ -1830,6 +1829,7 @@ name = "tests"
 version = "0.1.0"
 dependencies = [
  "ckb-testtool",
+ "ckb-vote-common",
  "ckb-vote-types",
  "serde_json",
 ]

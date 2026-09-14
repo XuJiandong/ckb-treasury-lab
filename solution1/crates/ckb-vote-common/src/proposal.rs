@@ -5,15 +5,19 @@
 //! `args`, which identifies the proposal cell unambiguously: the type script of
 //! a proposal cell is unique on the whole chain (Type ID), and finding a script
 //! whose hash matches a given 20 byte value is infeasible otherwise.
+//!
+//! The proposal type script itself points at the config cell, so a vote or a
+//! counting cell reaches the config through the proposal cell
+//! ([`ProposalRef::config_id`]).
 
 use ckb_std::{
     ckb_constants::Source,
     ckb_types::{packed::Script, prelude::Entity},
-    high_level::{load_cell_data, load_cell_type, load_header, QueryIter},
+    high_level::{QueryIter, load_cell_data, load_cell_type, load_header},
 };
 use ckb_vote_types::molecules::types::ProposalCellData;
 
-use crate::{config::u64_of, error::Error, hash};
+use crate::{config::u64_of, constants, error::Error, hash};
 
 /// A proposal cell referenced through the `cell_deps` of the current transaction.
 #[derive(Debug, Clone)]
@@ -22,6 +26,12 @@ pub struct ProposalRef {
     pub index: usize,
     /// The type script of the proposal cell.
     pub script: Script,
+    /// `blake160(config type script)`, read from the proposal type script args.
+    ///
+    /// Vote and counting cells are bound to a proposal through
+    /// `blake160(proposal type script)`, so the config cell is reachable from
+    /// them through the proposal cell.
+    pub config_id: [u8; constants::CONFIG_ID_LEN],
     /// `status` field of the cell data.
     pub status: u8,
     /// `total_yes` field of the cell data.
@@ -34,7 +44,7 @@ pub struct ProposalRef {
 ///
 /// The cell must be referenced through `cell_deps`, and the header of the block
 /// that created it must be listed in `header_deps` (see [`block_number_of`]).
-pub fn find_proposal(proposal_id: &[u8; 20]) -> Result<ProposalRef, Error> {
+pub fn find_proposal(proposal_id: &[u8; constants::PROPOSAL_ID_LEN]) -> Result<ProposalRef, Error> {
     let mut found: Option<ProposalRef> = None;
     for (index, type_script) in QueryIter::new(load_cell_type, Source::CellDep).enumerate() {
         let Some(type_script) = type_script else {
@@ -48,12 +58,23 @@ pub fn find_proposal(proposal_id: &[u8; 20]) -> Result<ProposalRef, Error> {
             // ever match; two matches mean a malformed transaction.
             return Err(Error::ProposalCellNotFound);
         }
-        let data = load_cell_data(index, Source::CellDep).map_err(|_| Error::ProposalCellNotFound)?;
+        // The proposal type script args are
+        // `blake160(config type script) || Type ID`.
+        let args = type_script.args().raw_data();
+        if args.len() != constants::PROPOSAL_ARGS_LEN {
+            return Err(Error::ProposalDataInvalid);
+        }
+        let mut config_id = [0u8; constants::CONFIG_ID_LEN];
+        config_id.copy_from_slice(&args[..constants::CONFIG_ID_LEN]);
+
+        let data =
+            load_cell_data(index, Source::CellDep).map_err(|_| Error::ProposalCellNotFound)?;
         let proposal =
             ProposalCellData::from_slice(&data).map_err(|_| Error::ProposalDataInvalid)?;
         found = Some(ProposalRef {
             index,
             script: type_script,
+            config_id,
             status: proposal.status().as_slice()[0],
             total_yes: u64_of(proposal.total_yes()),
             block_number: block_number_of(index)?,

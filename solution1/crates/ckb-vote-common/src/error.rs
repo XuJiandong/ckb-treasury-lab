@@ -45,7 +45,8 @@ pub enum Error {
     ProposalCapacityTooSmall = 42,
     /// The bond capacity must survive the finalized / passed transitions.
     ProposalCapacityChanged = 43,
-    /// `description` and `applied_amount` are immutable once created.
+    /// `description`, `requested_amount` and `recipient_lock_hash` are
+    /// immutable once created.
     ProposalFieldsChanged = 44,
     /// `config.vote_duration` has not elapsed yet.
     VoteDurationNotElapsed = 45,
@@ -65,6 +66,10 @@ pub enum Error {
     CountingRangeOverlap = 52,
     /// No counting cell was referenced.
     CountingCellMissing = 53,
+    /// A passed proposal must create an output for `recipient_lock_hash`.
+    RecipientOutputMissing = 54,
+    /// The recipient output holds less than `requested_amount`.
+    RecipientAmountTooSmall = 55,
 
     // ------------------------------------------------------ vote type script
     /// The vote cell data is not a well formed `Vote`.
@@ -87,7 +92,9 @@ pub enum Error {
     // -------------------------------------------------- counting type script
     /// The counting cell data is not a well formed `Counting`.
     CountingDataInvalid = 80,
-    /// The hash range is empty (`start_hash > end_hash`).
+    /// A hash range does not satisfy `start_hash <= end_hash`. Returned by the
+    /// counting script for its own range, and by the proposal script when it
+    /// aggregates the ranges of the referenced counting cells.
     CountingRangeInvalid = 81,
     /// A counting cell is immutable: it may only be created or consumed.
     CountingCellTransitionInvalid = 82,

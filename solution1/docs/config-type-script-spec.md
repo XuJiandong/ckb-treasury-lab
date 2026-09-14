@@ -37,6 +37,8 @@ table VotingConfig {
 }
 ```
 
+The `vote_duration`, `vote_window` and `challenge_time` fields are plain block counts (not `since` values): a script compares them with the relative `since` of the proposal input, or with the block numbers that created the cells.
+
 The `emergent_halt` is read by all type scripts (the proposal type script, the vote type script, and the count type script). When set to `1`, all scripts fail. Updating this field halts the voting system.
 
 

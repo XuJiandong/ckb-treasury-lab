@@ -41,7 +41,7 @@ across the whole blockchain. This also means that type scripts are unique. It ha
 
 These rules are actually the same as the `Type ID` rules. Some fields should be defined in the cell data:
 1. config.vote_duration: after this time, the initiator can update the proposal to be finalized.
-2. applied_amount: the amount of assets that can be granted if the voting passes.
+2. requested_amount: the amount of assets that can be granted if the voting passes.
 3. status: should be `proposal`, `finalized`, `passed` to present different status. The initial status is `proposal`.
 
 ### Vote Cell
@@ -74,7 +74,7 @@ When the number of vote cells is small, one counting cell might be enough. It wo
 
 ### Finalized Proposal Cell
 Now all counting cells, together with the proposal cell, can be consumed to produce a new finalized proposal cell.
-This must happen after `config.vote_duration`. The `vote_duration` is a relative `since` based on the proposal cell.
+This must happen after `config.vote_duration` blocks have elapsed since the proposal cell was created. The `vote_duration` is a block count, compared with the relative `since` of the proposal cell.
 This is essentially the operation of updating the proposal cell, and it should follow these rules:
 
 1. All counting cells have type script args that reference the hash of the proposal type script, and the proposal cell is an input cell.

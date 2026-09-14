@@ -2,10 +2,13 @@ import blockchain;
 
 array Byte2 [byte; 2];
 
+array Bytes20 [byte; 20];
+
 table ProposalCellData {
     status: byte,
     description: Bytes,
-    applied_amount: Uint64,
+    requested_amount: Uint64,
+    recipient_lock_hash: Bytes20,
     total_yes: Uint64,
 }
 
@@ -28,6 +31,8 @@ table VotingConfig {
     vote_hash_type: byte,
     counting_code_hash: Byte32,
     counting_hash_type: byte,
+    always_success_code_hash: Byte32,
+    always_success_hash_type: byte,
     yes_threshold: Uint64,
     minimal_proposal_capacity: Uint64,
     vote_duration: Uint64,

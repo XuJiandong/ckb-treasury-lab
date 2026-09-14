@@ -27,7 +27,7 @@ The `vote_amount` is the sum of all related DAO deposit amounts, as described la
 The `direction` is `0` for "NO" or `1` for "YES". A "NO" vote can challenge the final results.
 
 ## Processing
-The first output cell is the vote cell and carries this type script. Its lock script should represent the voter's identity and must be unlocked in the input cells. The other cells in this transaction can't be vote cell.
+The vote cell's lock script should represent the voter's identity and must be unlocked in the input cells. The other cells in this transaction can't be vote cell.
 
 The script iterates over all cell_deps to find the proposal type script whose hash matches `args`; if none is found, the script fails. The referenced cell must be a proposal cell, i.e. the `status` in its cell data must be 0 ("proposal"), so a vote can only be cast before the proposal cell is finalized. 
 

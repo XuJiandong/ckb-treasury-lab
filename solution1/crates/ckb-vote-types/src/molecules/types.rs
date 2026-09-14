@@ -237,6 +237,555 @@ impl<'a> From<&'a Byte2Reader<'a>> for &'a [u8; 2usize] {
     }
 }
 #[derive(Clone)]
+pub struct Bytes20(molecule::bytes::Bytes);
+impl ::core::fmt::LowerHex for Bytes20 {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+        use molecule::hex_string;
+        if f.alternate() {
+            write!(f, "0x")?;
+        }
+        write!(f, "{}", hex_string(self.as_slice()))
+    }
+}
+impl ::core::fmt::Debug for Bytes20 {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+        write!(f, "{}({:#x})", Self::NAME, self)
+    }
+}
+impl ::core::fmt::Display for Bytes20 {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+        use molecule::hex_string;
+        let raw_data = hex_string(&self.raw_data());
+        write!(f, "{}(0x{})", Self::NAME, raw_data)
+    }
+}
+impl ::core::default::Default for Bytes20 {
+    fn default() -> Self {
+        let v = molecule::bytes::Bytes::from_static(&Self::DEFAULT_VALUE);
+        Bytes20::new_unchecked(v)
+    }
+}
+impl Bytes20 {
+    const DEFAULT_VALUE: [u8; 20] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    pub const TOTAL_SIZE: usize = 20;
+    pub const ITEM_SIZE: usize = 1;
+    pub const ITEM_COUNT: usize = 20;
+    pub fn nth0(&self) -> Byte {
+        Byte::new_unchecked(self.0.slice(0..1))
+    }
+    pub fn nth1(&self) -> Byte {
+        Byte::new_unchecked(self.0.slice(1..2))
+    }
+    pub fn nth2(&self) -> Byte {
+        Byte::new_unchecked(self.0.slice(2..3))
+    }
+    pub fn nth3(&self) -> Byte {
+        Byte::new_unchecked(self.0.slice(3..4))
+    }
+    pub fn nth4(&self) -> Byte {
+        Byte::new_unchecked(self.0.slice(4..5))
+    }
+    pub fn nth5(&self) -> Byte {
+        Byte::new_unchecked(self.0.slice(5..6))
+    }
+    pub fn nth6(&self) -> Byte {
+        Byte::new_unchecked(self.0.slice(6..7))
+    }
+    pub fn nth7(&self) -> Byte {
+        Byte::new_unchecked(self.0.slice(7..8))
+    }
+    pub fn nth8(&self) -> Byte {
+        Byte::new_unchecked(self.0.slice(8..9))
+    }
+    pub fn nth9(&self) -> Byte {
+        Byte::new_unchecked(self.0.slice(9..10))
+    }
+    pub fn nth10(&self) -> Byte {
+        Byte::new_unchecked(self.0.slice(10..11))
+    }
+    pub fn nth11(&self) -> Byte {
+        Byte::new_unchecked(self.0.slice(11..12))
+    }
+    pub fn nth12(&self) -> Byte {
+        Byte::new_unchecked(self.0.slice(12..13))
+    }
+    pub fn nth13(&self) -> Byte {
+        Byte::new_unchecked(self.0.slice(13..14))
+    }
+    pub fn nth14(&self) -> Byte {
+        Byte::new_unchecked(self.0.slice(14..15))
+    }
+    pub fn nth15(&self) -> Byte {
+        Byte::new_unchecked(self.0.slice(15..16))
+    }
+    pub fn nth16(&self) -> Byte {
+        Byte::new_unchecked(self.0.slice(16..17))
+    }
+    pub fn nth17(&self) -> Byte {
+        Byte::new_unchecked(self.0.slice(17..18))
+    }
+    pub fn nth18(&self) -> Byte {
+        Byte::new_unchecked(self.0.slice(18..19))
+    }
+    pub fn nth19(&self) -> Byte {
+        Byte::new_unchecked(self.0.slice(19..20))
+    }
+    pub fn raw_data(&self) -> molecule::bytes::Bytes {
+        self.as_bytes()
+    }
+    pub fn as_reader<'r>(&'r self) -> Bytes20Reader<'r> {
+        Bytes20Reader::new_unchecked(self.as_slice())
+    }
+}
+impl molecule::prelude::Entity for Bytes20 {
+    type Builder = Bytes20Builder;
+    const NAME: &'static str = "Bytes20";
+    fn new_unchecked(data: molecule::bytes::Bytes) -> Self {
+        Bytes20(data)
+    }
+    fn as_bytes(&self) -> molecule::bytes::Bytes {
+        self.0.clone()
+    }
+    fn as_slice(&self) -> &[u8] {
+        &self.0[..]
+    }
+    fn from_slice(slice: &[u8]) -> molecule::error::VerificationResult<Self> {
+        Bytes20Reader::from_slice(slice).map(|reader| reader.to_entity())
+    }
+    fn from_compatible_slice(slice: &[u8]) -> molecule::error::VerificationResult<Self> {
+        Bytes20Reader::from_compatible_slice(slice).map(|reader| reader.to_entity())
+    }
+    fn new_builder() -> Self::Builder {
+        ::core::default::Default::default()
+    }
+    fn as_builder(self) -> Self::Builder {
+        Self::new_builder().set([
+            self.nth0(),
+            self.nth1(),
+            self.nth2(),
+            self.nth3(),
+            self.nth4(),
+            self.nth5(),
+            self.nth6(),
+            self.nth7(),
+            self.nth8(),
+            self.nth9(),
+            self.nth10(),
+            self.nth11(),
+            self.nth12(),
+            self.nth13(),
+            self.nth14(),
+            self.nth15(),
+            self.nth16(),
+            self.nth17(),
+            self.nth18(),
+            self.nth19(),
+        ])
+    }
+}
+#[derive(Clone, Copy)]
+pub struct Bytes20Reader<'r>(&'r [u8]);
+impl<'r> ::core::fmt::LowerHex for Bytes20Reader<'r> {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+        use molecule::hex_string;
+        if f.alternate() {
+            write!(f, "0x")?;
+        }
+        write!(f, "{}", hex_string(self.as_slice()))
+    }
+}
+impl<'r> ::core::fmt::Debug for Bytes20Reader<'r> {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+        write!(f, "{}({:#x})", Self::NAME, self)
+    }
+}
+impl<'r> ::core::fmt::Display for Bytes20Reader<'r> {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+        use molecule::hex_string;
+        let raw_data = hex_string(&self.raw_data());
+        write!(f, "{}(0x{})", Self::NAME, raw_data)
+    }
+}
+impl<'r> Bytes20Reader<'r> {
+    pub const TOTAL_SIZE: usize = 20;
+    pub const ITEM_SIZE: usize = 1;
+    pub const ITEM_COUNT: usize = 20;
+    pub fn nth0(&self) -> ByteReader<'r> {
+        ByteReader::new_unchecked(&self.as_slice()[0..1])
+    }
+    pub fn nth1(&self) -> ByteReader<'r> {
+        ByteReader::new_unchecked(&self.as_slice()[1..2])
+    }
+    pub fn nth2(&self) -> ByteReader<'r> {
+        ByteReader::new_unchecked(&self.as_slice()[2..3])
+    }
+    pub fn nth3(&self) -> ByteReader<'r> {
+        ByteReader::new_unchecked(&self.as_slice()[3..4])
+    }
+    pub fn nth4(&self) -> ByteReader<'r> {
+        ByteReader::new_unchecked(&self.as_slice()[4..5])
+    }
+    pub fn nth5(&self) -> ByteReader<'r> {
+        ByteReader::new_unchecked(&self.as_slice()[5..6])
+    }
+    pub fn nth6(&self) -> ByteReader<'r> {
+        ByteReader::new_unchecked(&self.as_slice()[6..7])
+    }
+    pub fn nth7(&self) -> ByteReader<'r> {
+        ByteReader::new_unchecked(&self.as_slice()[7..8])
+    }
+    pub fn nth8(&self) -> ByteReader<'r> {
+        ByteReader::new_unchecked(&self.as_slice()[8..9])
+    }
+    pub fn nth9(&self) -> ByteReader<'r> {
+        ByteReader::new_unchecked(&self.as_slice()[9..10])
+    }
+    pub fn nth10(&self) -> ByteReader<'r> {
+        ByteReader::new_unchecked(&self.as_slice()[10..11])
+    }
+    pub fn nth11(&self) -> ByteReader<'r> {
+        ByteReader::new_unchecked(&self.as_slice()[11..12])
+    }
+    pub fn nth12(&self) -> ByteReader<'r> {
+        ByteReader::new_unchecked(&self.as_slice()[12..13])
+    }
+    pub fn nth13(&self) -> ByteReader<'r> {
+        ByteReader::new_unchecked(&self.as_slice()[13..14])
+    }
+    pub fn nth14(&self) -> ByteReader<'r> {
+        ByteReader::new_unchecked(&self.as_slice()[14..15])
+    }
+    pub fn nth15(&self) -> ByteReader<'r> {
+        ByteReader::new_unchecked(&self.as_slice()[15..16])
+    }
+    pub fn nth16(&self) -> ByteReader<'r> {
+        ByteReader::new_unchecked(&self.as_slice()[16..17])
+    }
+    pub fn nth17(&self) -> ByteReader<'r> {
+        ByteReader::new_unchecked(&self.as_slice()[17..18])
+    }
+    pub fn nth18(&self) -> ByteReader<'r> {
+        ByteReader::new_unchecked(&self.as_slice()[18..19])
+    }
+    pub fn nth19(&self) -> ByteReader<'r> {
+        ByteReader::new_unchecked(&self.as_slice()[19..20])
+    }
+    pub fn raw_data(&self) -> &'r [u8] {
+        self.as_slice()
+    }
+}
+impl<'r> molecule::prelude::Reader<'r> for Bytes20Reader<'r> {
+    type Entity = Bytes20;
+    const NAME: &'static str = "Bytes20Reader";
+    fn to_entity(&self) -> Self::Entity {
+        Self::Entity::new_unchecked(self.as_slice().to_owned().into())
+    }
+    fn new_unchecked(slice: &'r [u8]) -> Self {
+        Bytes20Reader(slice)
+    }
+    fn as_slice(&self) -> &'r [u8] {
+        self.0
+    }
+    fn verify(slice: &[u8], _compatible: bool) -> molecule::error::VerificationResult<()> {
+        use molecule::verification_error as ve;
+        let slice_len = slice.len();
+        if slice_len != Self::TOTAL_SIZE {
+            return ve!(Self, TotalSizeNotMatch, Self::TOTAL_SIZE, slice_len);
+        }
+        Ok(())
+    }
+}
+#[derive(Clone)]
+pub struct Bytes20Builder(pub(crate) [Byte; 20]);
+impl ::core::fmt::Debug for Bytes20Builder {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+        write!(f, "{}({:?})", Self::NAME, &self.0[..])
+    }
+}
+impl ::core::default::Default for Bytes20Builder {
+    fn default() -> Self {
+        Bytes20Builder([
+            Byte::default(),
+            Byte::default(),
+            Byte::default(),
+            Byte::default(),
+            Byte::default(),
+            Byte::default(),
+            Byte::default(),
+            Byte::default(),
+            Byte::default(),
+            Byte::default(),
+            Byte::default(),
+            Byte::default(),
+            Byte::default(),
+            Byte::default(),
+            Byte::default(),
+            Byte::default(),
+            Byte::default(),
+            Byte::default(),
+            Byte::default(),
+            Byte::default(),
+        ])
+    }
+}
+impl Bytes20Builder {
+    pub const TOTAL_SIZE: usize = 20;
+    pub const ITEM_SIZE: usize = 1;
+    pub const ITEM_COUNT: usize = 20;
+    pub fn set<T>(mut self, v: T) -> Self
+    where
+        T: ::core::convert::Into<[Byte; 20]>,
+    {
+        self.0 = v.into();
+        self
+    }
+    pub fn nth0<T>(mut self, v: T) -> Self
+    where
+        T: ::core::convert::Into<Byte>,
+    {
+        self.0[0] = v.into();
+        self
+    }
+    pub fn nth1<T>(mut self, v: T) -> Self
+    where
+        T: ::core::convert::Into<Byte>,
+    {
+        self.0[1] = v.into();
+        self
+    }
+    pub fn nth2<T>(mut self, v: T) -> Self
+    where
+        T: ::core::convert::Into<Byte>,
+    {
+        self.0[2] = v.into();
+        self
+    }
+    pub fn nth3<T>(mut self, v: T) -> Self
+    where
+        T: ::core::convert::Into<Byte>,
+    {
+        self.0[3] = v.into();
+        self
+    }
+    pub fn nth4<T>(mut self, v: T) -> Self
+    where
+        T: ::core::convert::Into<Byte>,
+    {
+        self.0[4] = v.into();
+        self
+    }
+    pub fn nth5<T>(mut self, v: T) -> Self
+    where
+        T: ::core::convert::Into<Byte>,
+    {
+        self.0[5] = v.into();
+        self
+    }
+    pub fn nth6<T>(mut self, v: T) -> Self
+    where
+        T: ::core::convert::Into<Byte>,
+    {
+        self.0[6] = v.into();
+        self
+    }
+    pub fn nth7<T>(mut self, v: T) -> Self
+    where
+        T: ::core::convert::Into<Byte>,
+    {
+        self.0[7] = v.into();
+        self
+    }
+    pub fn nth8<T>(mut self, v: T) -> Self
+    where
+        T: ::core::convert::Into<Byte>,
+    {
+        self.0[8] = v.into();
+        self
+    }
+    pub fn nth9<T>(mut self, v: T) -> Self
+    where
+        T: ::core::convert::Into<Byte>,
+    {
+        self.0[9] = v.into();
+        self
+    }
+    pub fn nth10<T>(mut self, v: T) -> Self
+    where
+        T: ::core::convert::Into<Byte>,
+    {
+        self.0[10] = v.into();
+        self
+    }
+    pub fn nth11<T>(mut self, v: T) -> Self
+    where
+        T: ::core::convert::Into<Byte>,
+    {
+        self.0[11] = v.into();
+        self
+    }
+    pub fn nth12<T>(mut self, v: T) -> Self
+    where
+        T: ::core::convert::Into<Byte>,
+    {
+        self.0[12] = v.into();
+        self
+    }
+    pub fn nth13<T>(mut self, v: T) -> Self
+    where
+        T: ::core::convert::Into<Byte>,
+    {
+        self.0[13] = v.into();
+        self
+    }
+    pub fn nth14<T>(mut self, v: T) -> Self
+    where
+        T: ::core::convert::Into<Byte>,
+    {
+        self.0[14] = v.into();
+        self
+    }
+    pub fn nth15<T>(mut self, v: T) -> Self
+    where
+        T: ::core::convert::Into<Byte>,
+    {
+        self.0[15] = v.into();
+        self
+    }
+    pub fn nth16<T>(mut self, v: T) -> Self
+    where
+        T: ::core::convert::Into<Byte>,
+    {
+        self.0[16] = v.into();
+        self
+    }
+    pub fn nth17<T>(mut self, v: T) -> Self
+    where
+        T: ::core::convert::Into<Byte>,
+    {
+        self.0[17] = v.into();
+        self
+    }
+    pub fn nth18<T>(mut self, v: T) -> Self
+    where
+        T: ::core::convert::Into<Byte>,
+    {
+        self.0[18] = v.into();
+        self
+    }
+    pub fn nth19<T>(mut self, v: T) -> Self
+    where
+        T: ::core::convert::Into<Byte>,
+    {
+        self.0[19] = v.into();
+        self
+    }
+}
+impl molecule::prelude::Builder for Bytes20Builder {
+    type Entity = Bytes20;
+    const NAME: &'static str = "Bytes20Builder";
+    fn expected_length(&self) -> usize {
+        Self::TOTAL_SIZE
+    }
+    fn write<W: molecule::io::Write>(&self, writer: &mut W) -> molecule::io::Result<()> {
+        writer.write_all(self.0[0].as_slice())?;
+        writer.write_all(self.0[1].as_slice())?;
+        writer.write_all(self.0[2].as_slice())?;
+        writer.write_all(self.0[3].as_slice())?;
+        writer.write_all(self.0[4].as_slice())?;
+        writer.write_all(self.0[5].as_slice())?;
+        writer.write_all(self.0[6].as_slice())?;
+        writer.write_all(self.0[7].as_slice())?;
+        writer.write_all(self.0[8].as_slice())?;
+        writer.write_all(self.0[9].as_slice())?;
+        writer.write_all(self.0[10].as_slice())?;
+        writer.write_all(self.0[11].as_slice())?;
+        writer.write_all(self.0[12].as_slice())?;
+        writer.write_all(self.0[13].as_slice())?;
+        writer.write_all(self.0[14].as_slice())?;
+        writer.write_all(self.0[15].as_slice())?;
+        writer.write_all(self.0[16].as_slice())?;
+        writer.write_all(self.0[17].as_slice())?;
+        writer.write_all(self.0[18].as_slice())?;
+        writer.write_all(self.0[19].as_slice())?;
+        Ok(())
+    }
+    fn build(&self) -> Self::Entity {
+        let mut inner = Vec::with_capacity(self.expected_length());
+        self.write(&mut inner)
+            .unwrap_or_else(|_| panic!("{} build should be ok", Self::NAME));
+        Bytes20::new_unchecked(inner.into())
+    }
+}
+impl From<[Byte; 20usize]> for Bytes20 {
+    fn from(value: [Byte; 20usize]) -> Self {
+        Self::new_builder().set(value).build()
+    }
+}
+impl ::core::convert::TryFrom<&[Byte]> for Bytes20 {
+    type Error = ::core::array::TryFromSliceError;
+    fn try_from(value: &[Byte]) -> Result<Self, ::core::array::TryFromSliceError> {
+        Ok(Self::new_builder()
+            .set(<&[Byte; 20usize]>::try_from(value)?.clone())
+            .build())
+    }
+}
+impl From<Bytes20> for [Byte; 20usize] {
+    #[track_caller]
+    fn from(value: Bytes20) -> Self {
+        [
+            value.nth0(),
+            value.nth1(),
+            value.nth2(),
+            value.nth3(),
+            value.nth4(),
+            value.nth5(),
+            value.nth6(),
+            value.nth7(),
+            value.nth8(),
+            value.nth9(),
+            value.nth10(),
+            value.nth11(),
+            value.nth12(),
+            value.nth13(),
+            value.nth14(),
+            value.nth15(),
+            value.nth16(),
+            value.nth17(),
+            value.nth18(),
+            value.nth19(),
+        ]
+    }
+}
+impl From<[u8; 20usize]> for Bytes20 {
+    fn from(value: [u8; 20usize]) -> Self {
+        Bytes20Reader::new_unchecked(&value).to_entity()
+    }
+}
+impl ::core::convert::TryFrom<&[u8]> for Bytes20 {
+    type Error = ::core::array::TryFromSliceError;
+    fn try_from(value: &[u8]) -> Result<Self, ::core::array::TryFromSliceError> {
+        Ok(<[u8; 20usize]>::try_from(value)?.into())
+    }
+}
+impl From<Bytes20> for [u8; 20usize] {
+    #[track_caller]
+    fn from(value: Bytes20) -> Self {
+        ::core::convert::TryFrom::try_from(value.as_slice()).unwrap()
+    }
+}
+impl<'a> From<Bytes20Reader<'a>> for &'a [u8; 20usize] {
+    #[track_caller]
+    fn from(value: Bytes20Reader<'a>) -> Self {
+        ::core::convert::TryFrom::try_from(value.as_slice()).unwrap()
+    }
+}
+impl<'a> From<&'a Bytes20Reader<'a>> for &'a [u8; 20usize] {
+    #[track_caller]
+    fn from(value: &'a Bytes20Reader<'a>) -> Self {
+        ::core::convert::TryFrom::try_from(value.as_slice()).unwrap()
+    }
+}
+#[derive(Clone)]
 pub struct ProposalCellData(molecule::bytes::Bytes);
 impl ::core::fmt::LowerHex for ProposalCellData {
     fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
@@ -257,7 +806,13 @@ impl ::core::fmt::Display for ProposalCellData {
         write!(f, "{} {{ ", Self::NAME)?;
         write!(f, "{}: {}", "status", self.status())?;
         write!(f, ", {}: {}", "description", self.description())?;
-        write!(f, ", {}: {}", "applied_amount", self.applied_amount())?;
+        write!(f, ", {}: {}", "requested_amount", self.requested_amount())?;
+        write!(
+            f,
+            ", {}: {}",
+            "recipient_lock_hash",
+            self.recipient_lock_hash()
+        )?;
         write!(f, ", {}: {}", "total_yes", self.total_yes())?;
         let extra_count = self.count_extra_fields();
         if extra_count != 0 {
@@ -273,11 +828,12 @@ impl ::core::default::Default for ProposalCellData {
     }
 }
 impl ProposalCellData {
-    const DEFAULT_VALUE: [u8; 41] = [
-        41, 0, 0, 0, 20, 0, 0, 0, 21, 0, 0, 0, 25, 0, 0, 0, 33, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    const DEFAULT_VALUE: [u8; 65] = [
+        65, 0, 0, 0, 24, 0, 0, 0, 25, 0, 0, 0, 29, 0, 0, 0, 37, 0, 0, 0, 57, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0,
     ];
-    pub const FIELD_COUNT: usize = 4;
+    pub const FIELD_COUNT: usize = 5;
     pub fn total_size(&self) -> usize {
         molecule::unpack_number(self.as_slice()) as usize
     }
@@ -306,17 +862,23 @@ impl ProposalCellData {
         let end = molecule::unpack_number(&slice[12..]) as usize;
         Bytes::new_unchecked(self.0.slice(start..end))
     }
-    pub fn applied_amount(&self) -> Uint64 {
+    pub fn requested_amount(&self) -> Uint64 {
         let slice = self.as_slice();
         let start = molecule::unpack_number(&slice[12..]) as usize;
         let end = molecule::unpack_number(&slice[16..]) as usize;
         Uint64::new_unchecked(self.0.slice(start..end))
     }
-    pub fn total_yes(&self) -> Uint64 {
+    pub fn recipient_lock_hash(&self) -> Bytes20 {
         let slice = self.as_slice();
         let start = molecule::unpack_number(&slice[16..]) as usize;
+        let end = molecule::unpack_number(&slice[20..]) as usize;
+        Bytes20::new_unchecked(self.0.slice(start..end))
+    }
+    pub fn total_yes(&self) -> Uint64 {
+        let slice = self.as_slice();
+        let start = molecule::unpack_number(&slice[20..]) as usize;
         if self.has_extra_fields() {
-            let end = molecule::unpack_number(&slice[20..]) as usize;
+            let end = molecule::unpack_number(&slice[24..]) as usize;
             Uint64::new_unchecked(self.0.slice(start..end))
         } else {
             Uint64::new_unchecked(self.0.slice(start..))
@@ -351,7 +913,8 @@ impl molecule::prelude::Entity for ProposalCellData {
         Self::new_builder()
             .status(self.status())
             .description(self.description())
-            .applied_amount(self.applied_amount())
+            .requested_amount(self.requested_amount())
+            .recipient_lock_hash(self.recipient_lock_hash())
             .total_yes(self.total_yes())
     }
 }
@@ -376,7 +939,13 @@ impl<'r> ::core::fmt::Display for ProposalCellDataReader<'r> {
         write!(f, "{} {{ ", Self::NAME)?;
         write!(f, "{}: {}", "status", self.status())?;
         write!(f, ", {}: {}", "description", self.description())?;
-        write!(f, ", {}: {}", "applied_amount", self.applied_amount())?;
+        write!(f, ", {}: {}", "requested_amount", self.requested_amount())?;
+        write!(
+            f,
+            ", {}: {}",
+            "recipient_lock_hash",
+            self.recipient_lock_hash()
+        )?;
         write!(f, ", {}: {}", "total_yes", self.total_yes())?;
         let extra_count = self.count_extra_fields();
         if extra_count != 0 {
@@ -386,7 +955,7 @@ impl<'r> ::core::fmt::Display for ProposalCellDataReader<'r> {
     }
 }
 impl<'r> ProposalCellDataReader<'r> {
-    pub const FIELD_COUNT: usize = 4;
+    pub const FIELD_COUNT: usize = 5;
     pub fn total_size(&self) -> usize {
         molecule::unpack_number(self.as_slice()) as usize
     }
@@ -415,17 +984,23 @@ impl<'r> ProposalCellDataReader<'r> {
         let end = molecule::unpack_number(&slice[12..]) as usize;
         BytesReader::new_unchecked(&self.as_slice()[start..end])
     }
-    pub fn applied_amount(&self) -> Uint64Reader<'r> {
+    pub fn requested_amount(&self) -> Uint64Reader<'r> {
         let slice = self.as_slice();
         let start = molecule::unpack_number(&slice[12..]) as usize;
         let end = molecule::unpack_number(&slice[16..]) as usize;
         Uint64Reader::new_unchecked(&self.as_slice()[start..end])
     }
-    pub fn total_yes(&self) -> Uint64Reader<'r> {
+    pub fn recipient_lock_hash(&self) -> Bytes20Reader<'r> {
         let slice = self.as_slice();
         let start = molecule::unpack_number(&slice[16..]) as usize;
+        let end = molecule::unpack_number(&slice[20..]) as usize;
+        Bytes20Reader::new_unchecked(&self.as_slice()[start..end])
+    }
+    pub fn total_yes(&self) -> Uint64Reader<'r> {
+        let slice = self.as_slice();
+        let start = molecule::unpack_number(&slice[20..]) as usize;
         if self.has_extra_fields() {
-            let end = molecule::unpack_number(&slice[20..]) as usize;
+            let end = molecule::unpack_number(&slice[24..]) as usize;
             Uint64Reader::new_unchecked(&self.as_slice()[start..end])
         } else {
             Uint64Reader::new_unchecked(&self.as_slice()[start..])
@@ -481,7 +1056,8 @@ impl<'r> molecule::prelude::Reader<'r> for ProposalCellDataReader<'r> {
         ByteReader::verify(&slice[offsets[0]..offsets[1]], compatible)?;
         BytesReader::verify(&slice[offsets[1]..offsets[2]], compatible)?;
         Uint64Reader::verify(&slice[offsets[2]..offsets[3]], compatible)?;
-        Uint64Reader::verify(&slice[offsets[3]..offsets[4]], compatible)?;
+        Bytes20Reader::verify(&slice[offsets[3]..offsets[4]], compatible)?;
+        Uint64Reader::verify(&slice[offsets[4]..offsets[5]], compatible)?;
         Ok(())
     }
 }
@@ -489,11 +1065,12 @@ impl<'r> molecule::prelude::Reader<'r> for ProposalCellDataReader<'r> {
 pub struct ProposalCellDataBuilder {
     pub(crate) status: Byte,
     pub(crate) description: Bytes,
-    pub(crate) applied_amount: Uint64,
+    pub(crate) requested_amount: Uint64,
+    pub(crate) recipient_lock_hash: Bytes20,
     pub(crate) total_yes: Uint64,
 }
 impl ProposalCellDataBuilder {
-    pub const FIELD_COUNT: usize = 4;
+    pub const FIELD_COUNT: usize = 5;
     pub fn status<T>(mut self, v: T) -> Self
     where
         T: ::core::convert::Into<Byte>,
@@ -508,11 +1085,18 @@ impl ProposalCellDataBuilder {
         self.description = v.into();
         self
     }
-    pub fn applied_amount<T>(mut self, v: T) -> Self
+    pub fn requested_amount<T>(mut self, v: T) -> Self
     where
         T: ::core::convert::Into<Uint64>,
     {
-        self.applied_amount = v.into();
+        self.requested_amount = v.into();
+        self
+    }
+    pub fn recipient_lock_hash<T>(mut self, v: T) -> Self
+    where
+        T: ::core::convert::Into<Bytes20>,
+    {
+        self.recipient_lock_hash = v.into();
         self
     }
     pub fn total_yes<T>(mut self, v: T) -> Self
@@ -530,7 +1114,8 @@ impl molecule::prelude::Builder for ProposalCellDataBuilder {
         molecule::NUMBER_SIZE * (Self::FIELD_COUNT + 1)
             + self.status.as_slice().len()
             + self.description.as_slice().len()
-            + self.applied_amount.as_slice().len()
+            + self.requested_amount.as_slice().len()
+            + self.recipient_lock_hash.as_slice().len()
             + self.total_yes.as_slice().len()
     }
     fn write<W: molecule::io::Write>(&self, writer: &mut W) -> molecule::io::Result<()> {
@@ -541,7 +1126,9 @@ impl molecule::prelude::Builder for ProposalCellDataBuilder {
         offsets.push(total_size);
         total_size += self.description.as_slice().len();
         offsets.push(total_size);
-        total_size += self.applied_amount.as_slice().len();
+        total_size += self.requested_amount.as_slice().len();
+        offsets.push(total_size);
+        total_size += self.recipient_lock_hash.as_slice().len();
         offsets.push(total_size);
         total_size += self.total_yes.as_slice().len();
         writer.write_all(&molecule::pack_number(total_size as molecule::Number))?;
@@ -550,7 +1137,8 @@ impl molecule::prelude::Builder for ProposalCellDataBuilder {
         }
         writer.write_all(self.status.as_slice())?;
         writer.write_all(self.description.as_slice())?;
-        writer.write_all(self.applied_amount.as_slice())?;
+        writer.write_all(self.requested_amount.as_slice())?;
+        writer.write_all(self.recipient_lock_hash.as_slice())?;
         writer.write_all(self.total_yes.as_slice())?;
         Ok(())
     }
@@ -1188,6 +1776,18 @@ impl ::core::fmt::Display for VotingConfig {
             "counting_hash_type",
             self.counting_hash_type()
         )?;
+        write!(
+            f,
+            ", {}: {}",
+            "always_success_code_hash",
+            self.always_success_code_hash()
+        )?;
+        write!(
+            f,
+            ", {}: {}",
+            "always_success_hash_type",
+            self.always_success_hash_type()
+        )?;
         write!(f, ", {}: {}", "yes_threshold", self.yes_threshold())?;
         write!(
             f,
@@ -1218,16 +1818,17 @@ impl ::core::default::Default for VotingConfig {
     }
 }
 impl VotingConfig {
-    const DEFAULT_VALUE: [u8; 187] = [
-        187, 0, 0, 0, 48, 0, 0, 0, 49, 0, 0, 0, 81, 0, 0, 0, 82, 0, 0, 0, 114, 0, 0, 0, 115, 0, 0,
-        0, 123, 0, 0, 0, 131, 0, 0, 0, 139, 0, 0, 0, 147, 0, 0, 0, 155, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    const DEFAULT_VALUE: [u8; 228] = [
+        228, 0, 0, 0, 56, 0, 0, 0, 57, 0, 0, 0, 89, 0, 0, 0, 90, 0, 0, 0, 122, 0, 0, 0, 123, 0, 0,
+        0, 155, 0, 0, 0, 156, 0, 0, 0, 164, 0, 0, 0, 172, 0, 0, 0, 180, 0, 0, 0, 188, 0, 0, 0, 196,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     ];
-    pub const FIELD_COUNT: usize = 11;
+    pub const FIELD_COUNT: usize = 13;
     pub fn total_size(&self) -> usize {
         molecule::unpack_number(self.as_slice()) as usize
     }
@@ -1274,41 +1875,53 @@ impl VotingConfig {
         let end = molecule::unpack_number(&slice[24..]) as usize;
         Byte::new_unchecked(self.0.slice(start..end))
     }
-    pub fn yes_threshold(&self) -> Uint64 {
+    pub fn always_success_code_hash(&self) -> Byte32 {
         let slice = self.as_slice();
         let start = molecule::unpack_number(&slice[24..]) as usize;
         let end = molecule::unpack_number(&slice[28..]) as usize;
-        Uint64::new_unchecked(self.0.slice(start..end))
+        Byte32::new_unchecked(self.0.slice(start..end))
     }
-    pub fn minimal_proposal_capacity(&self) -> Uint64 {
+    pub fn always_success_hash_type(&self) -> Byte {
         let slice = self.as_slice();
         let start = molecule::unpack_number(&slice[28..]) as usize;
         let end = molecule::unpack_number(&slice[32..]) as usize;
-        Uint64::new_unchecked(self.0.slice(start..end))
+        Byte::new_unchecked(self.0.slice(start..end))
     }
-    pub fn vote_duration(&self) -> Uint64 {
+    pub fn yes_threshold(&self) -> Uint64 {
         let slice = self.as_slice();
         let start = molecule::unpack_number(&slice[32..]) as usize;
         let end = molecule::unpack_number(&slice[36..]) as usize;
         Uint64::new_unchecked(self.0.slice(start..end))
     }
-    pub fn vote_window(&self) -> Uint64 {
+    pub fn minimal_proposal_capacity(&self) -> Uint64 {
         let slice = self.as_slice();
         let start = molecule::unpack_number(&slice[36..]) as usize;
         let end = molecule::unpack_number(&slice[40..]) as usize;
         Uint64::new_unchecked(self.0.slice(start..end))
     }
-    pub fn challenge_time(&self) -> Uint64 {
+    pub fn vote_duration(&self) -> Uint64 {
         let slice = self.as_slice();
         let start = molecule::unpack_number(&slice[40..]) as usize;
         let end = molecule::unpack_number(&slice[44..]) as usize;
         Uint64::new_unchecked(self.0.slice(start..end))
     }
-    pub fn veto_lock_script_hash(&self) -> Byte32 {
+    pub fn vote_window(&self) -> Uint64 {
         let slice = self.as_slice();
         let start = molecule::unpack_number(&slice[44..]) as usize;
+        let end = molecule::unpack_number(&slice[48..]) as usize;
+        Uint64::new_unchecked(self.0.slice(start..end))
+    }
+    pub fn challenge_time(&self) -> Uint64 {
+        let slice = self.as_slice();
+        let start = molecule::unpack_number(&slice[48..]) as usize;
+        let end = molecule::unpack_number(&slice[52..]) as usize;
+        Uint64::new_unchecked(self.0.slice(start..end))
+    }
+    pub fn veto_lock_script_hash(&self) -> Byte32 {
+        let slice = self.as_slice();
+        let start = molecule::unpack_number(&slice[52..]) as usize;
         if self.has_extra_fields() {
-            let end = molecule::unpack_number(&slice[48..]) as usize;
+            let end = molecule::unpack_number(&slice[56..]) as usize;
             Byte32::new_unchecked(self.0.slice(start..end))
         } else {
             Byte32::new_unchecked(self.0.slice(start..))
@@ -1346,6 +1959,8 @@ impl molecule::prelude::Entity for VotingConfig {
             .vote_hash_type(self.vote_hash_type())
             .counting_code_hash(self.counting_code_hash())
             .counting_hash_type(self.counting_hash_type())
+            .always_success_code_hash(self.always_success_code_hash())
+            .always_success_hash_type(self.always_success_hash_type())
             .yes_threshold(self.yes_threshold())
             .minimal_proposal_capacity(self.minimal_proposal_capacity())
             .vote_duration(self.vote_duration())
@@ -1388,6 +2003,18 @@ impl<'r> ::core::fmt::Display for VotingConfigReader<'r> {
             "counting_hash_type",
             self.counting_hash_type()
         )?;
+        write!(
+            f,
+            ", {}: {}",
+            "always_success_code_hash",
+            self.always_success_code_hash()
+        )?;
+        write!(
+            f,
+            ", {}: {}",
+            "always_success_hash_type",
+            self.always_success_hash_type()
+        )?;
         write!(f, ", {}: {}", "yes_threshold", self.yes_threshold())?;
         write!(
             f,
@@ -1412,7 +2039,7 @@ impl<'r> ::core::fmt::Display for VotingConfigReader<'r> {
     }
 }
 impl<'r> VotingConfigReader<'r> {
-    pub const FIELD_COUNT: usize = 11;
+    pub const FIELD_COUNT: usize = 13;
     pub fn total_size(&self) -> usize {
         molecule::unpack_number(self.as_slice()) as usize
     }
@@ -1459,41 +2086,53 @@ impl<'r> VotingConfigReader<'r> {
         let end = molecule::unpack_number(&slice[24..]) as usize;
         ByteReader::new_unchecked(&self.as_slice()[start..end])
     }
-    pub fn yes_threshold(&self) -> Uint64Reader<'r> {
+    pub fn always_success_code_hash(&self) -> Byte32Reader<'r> {
         let slice = self.as_slice();
         let start = molecule::unpack_number(&slice[24..]) as usize;
         let end = molecule::unpack_number(&slice[28..]) as usize;
-        Uint64Reader::new_unchecked(&self.as_slice()[start..end])
+        Byte32Reader::new_unchecked(&self.as_slice()[start..end])
     }
-    pub fn minimal_proposal_capacity(&self) -> Uint64Reader<'r> {
+    pub fn always_success_hash_type(&self) -> ByteReader<'r> {
         let slice = self.as_slice();
         let start = molecule::unpack_number(&slice[28..]) as usize;
         let end = molecule::unpack_number(&slice[32..]) as usize;
-        Uint64Reader::new_unchecked(&self.as_slice()[start..end])
+        ByteReader::new_unchecked(&self.as_slice()[start..end])
     }
-    pub fn vote_duration(&self) -> Uint64Reader<'r> {
+    pub fn yes_threshold(&self) -> Uint64Reader<'r> {
         let slice = self.as_slice();
         let start = molecule::unpack_number(&slice[32..]) as usize;
         let end = molecule::unpack_number(&slice[36..]) as usize;
         Uint64Reader::new_unchecked(&self.as_slice()[start..end])
     }
-    pub fn vote_window(&self) -> Uint64Reader<'r> {
+    pub fn minimal_proposal_capacity(&self) -> Uint64Reader<'r> {
         let slice = self.as_slice();
         let start = molecule::unpack_number(&slice[36..]) as usize;
         let end = molecule::unpack_number(&slice[40..]) as usize;
         Uint64Reader::new_unchecked(&self.as_slice()[start..end])
     }
-    pub fn challenge_time(&self) -> Uint64Reader<'r> {
+    pub fn vote_duration(&self) -> Uint64Reader<'r> {
         let slice = self.as_slice();
         let start = molecule::unpack_number(&slice[40..]) as usize;
         let end = molecule::unpack_number(&slice[44..]) as usize;
         Uint64Reader::new_unchecked(&self.as_slice()[start..end])
     }
-    pub fn veto_lock_script_hash(&self) -> Byte32Reader<'r> {
+    pub fn vote_window(&self) -> Uint64Reader<'r> {
         let slice = self.as_slice();
         let start = molecule::unpack_number(&slice[44..]) as usize;
+        let end = molecule::unpack_number(&slice[48..]) as usize;
+        Uint64Reader::new_unchecked(&self.as_slice()[start..end])
+    }
+    pub fn challenge_time(&self) -> Uint64Reader<'r> {
+        let slice = self.as_slice();
+        let start = molecule::unpack_number(&slice[48..]) as usize;
+        let end = molecule::unpack_number(&slice[52..]) as usize;
+        Uint64Reader::new_unchecked(&self.as_slice()[start..end])
+    }
+    pub fn veto_lock_script_hash(&self) -> Byte32Reader<'r> {
+        let slice = self.as_slice();
+        let start = molecule::unpack_number(&slice[52..]) as usize;
         if self.has_extra_fields() {
-            let end = molecule::unpack_number(&slice[48..]) as usize;
+            let end = molecule::unpack_number(&slice[56..]) as usize;
             Byte32Reader::new_unchecked(&self.as_slice()[start..end])
         } else {
             Byte32Reader::new_unchecked(&self.as_slice()[start..])
@@ -1551,12 +2190,14 @@ impl<'r> molecule::prelude::Reader<'r> for VotingConfigReader<'r> {
         ByteReader::verify(&slice[offsets[2]..offsets[3]], compatible)?;
         Byte32Reader::verify(&slice[offsets[3]..offsets[4]], compatible)?;
         ByteReader::verify(&slice[offsets[4]..offsets[5]], compatible)?;
-        Uint64Reader::verify(&slice[offsets[5]..offsets[6]], compatible)?;
-        Uint64Reader::verify(&slice[offsets[6]..offsets[7]], compatible)?;
+        Byte32Reader::verify(&slice[offsets[5]..offsets[6]], compatible)?;
+        ByteReader::verify(&slice[offsets[6]..offsets[7]], compatible)?;
         Uint64Reader::verify(&slice[offsets[7]..offsets[8]], compatible)?;
         Uint64Reader::verify(&slice[offsets[8]..offsets[9]], compatible)?;
         Uint64Reader::verify(&slice[offsets[9]..offsets[10]], compatible)?;
-        Byte32Reader::verify(&slice[offsets[10]..offsets[11]], compatible)?;
+        Uint64Reader::verify(&slice[offsets[10]..offsets[11]], compatible)?;
+        Uint64Reader::verify(&slice[offsets[11]..offsets[12]], compatible)?;
+        Byte32Reader::verify(&slice[offsets[12]..offsets[13]], compatible)?;
         Ok(())
     }
 }
@@ -1567,6 +2208,8 @@ pub struct VotingConfigBuilder {
     pub(crate) vote_hash_type: Byte,
     pub(crate) counting_code_hash: Byte32,
     pub(crate) counting_hash_type: Byte,
+    pub(crate) always_success_code_hash: Byte32,
+    pub(crate) always_success_hash_type: Byte,
     pub(crate) yes_threshold: Uint64,
     pub(crate) minimal_proposal_capacity: Uint64,
     pub(crate) vote_duration: Uint64,
@@ -1575,7 +2218,7 @@ pub struct VotingConfigBuilder {
     pub(crate) veto_lock_script_hash: Byte32,
 }
 impl VotingConfigBuilder {
-    pub const FIELD_COUNT: usize = 11;
+    pub const FIELD_COUNT: usize = 13;
     pub fn emergent_halt<T>(mut self, v: T) -> Self
     where
         T: ::core::convert::Into<Byte>,
@@ -1609,6 +2252,20 @@ impl VotingConfigBuilder {
         T: ::core::convert::Into<Byte>,
     {
         self.counting_hash_type = v.into();
+        self
+    }
+    pub fn always_success_code_hash<T>(mut self, v: T) -> Self
+    where
+        T: ::core::convert::Into<Byte32>,
+    {
+        self.always_success_code_hash = v.into();
+        self
+    }
+    pub fn always_success_hash_type<T>(mut self, v: T) -> Self
+    where
+        T: ::core::convert::Into<Byte>,
+    {
+        self.always_success_hash_type = v.into();
         self
     }
     pub fn yes_threshold<T>(mut self, v: T) -> Self
@@ -1664,6 +2321,8 @@ impl molecule::prelude::Builder for VotingConfigBuilder {
             + self.vote_hash_type.as_slice().len()
             + self.counting_code_hash.as_slice().len()
             + self.counting_hash_type.as_slice().len()
+            + self.always_success_code_hash.as_slice().len()
+            + self.always_success_hash_type.as_slice().len()
             + self.yes_threshold.as_slice().len()
             + self.minimal_proposal_capacity.as_slice().len()
             + self.vote_duration.as_slice().len()
@@ -1685,6 +2344,10 @@ impl molecule::prelude::Builder for VotingConfigBuilder {
         offsets.push(total_size);
         total_size += self.counting_hash_type.as_slice().len();
         offsets.push(total_size);
+        total_size += self.always_success_code_hash.as_slice().len();
+        offsets.push(total_size);
+        total_size += self.always_success_hash_type.as_slice().len();
+        offsets.push(total_size);
         total_size += self.yes_threshold.as_slice().len();
         offsets.push(total_size);
         total_size += self.minimal_proposal_capacity.as_slice().len();
@@ -1705,6 +2368,8 @@ impl molecule::prelude::Builder for VotingConfigBuilder {
         writer.write_all(self.vote_hash_type.as_slice())?;
         writer.write_all(self.counting_code_hash.as_slice())?;
         writer.write_all(self.counting_hash_type.as_slice())?;
+        writer.write_all(self.always_success_code_hash.as_slice())?;
+        writer.write_all(self.always_success_hash_type.as_slice())?;
         writer.write_all(self.yes_threshold.as_slice())?;
         writer.write_all(self.minimal_proposal_capacity.as_slice())?;
         writer.write_all(self.vote_duration.as_slice())?;
