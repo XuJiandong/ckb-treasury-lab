@@ -93,6 +93,7 @@ fn update_tx(
         output.requested_amount,
         output.recipient_lock_hash,
         output.total_yes,
+        output.origin_block_number,
     );
 
     let mut builder = TransactionBuilder::default()
@@ -104,7 +105,10 @@ fn update_tx(
         )
         .cell_dep(dep(&config_cell))
         .outputs(outputs)
-        .outputs_data([data, Bytes::new()].pack());
+        .outputs_data([data, Bytes::new()].pack())
+        // The finalized transition reads the creating block of the proposal
+        // input through `header_deps`.
+        .header_deps([proposal.block_hash.clone()].pack());
     for cell in counting {
         builder = builder.cell_dep(dep(cell));
     }
@@ -156,6 +160,8 @@ fn proposal_with_status(fixture: &mut Fixture, status: u8, total_yes: u64) -> Pr
     let mut spec = fixture.proposal_spec();
     spec.status = status;
     spec.total_yes = total_yes;
+    // A directly created finalized / passed cell is its own origin.
+    spec.origin_block_number = spec.block;
     fixture.proposal_cell(&spec)
 }
 
@@ -179,6 +185,8 @@ fn finalized_output(fixture: &Fixture, proposal: &Proposal, total_yes: u64) -> P
     let mut output = fixture.proposal_output(proposal);
     output.status = status::PROPOSAL_STATUS_FINALIZED;
     output.total_yes = total_yes;
+    // The finalized cell records the block that created the open proposal cell.
+    output.origin_block_number = proposal.block_number;
     output
 }
 
@@ -194,7 +202,7 @@ fn test_create_proposal() {
     let mut fixture = Fixture::new();
     let recipient = fixture.recipient_lock_hash();
     let (first_input, script) = creation_input(&mut fixture);
-    let data = proposal_data(status::PROPOSAL_STATUS_OPEN, VOTE_AMOUNT, recipient, 0);
+    let data = proposal_data(status::PROPOSAL_STATUS_OPEN, VOTE_AMOUNT, recipient, 0, 0);
     let tx = create_tx(
         &mut fixture,
         first_input,
@@ -222,7 +230,7 @@ fn test_create_proposal_requires_the_type_id() {
     let config_script = fixture.config_script.clone();
     let args = proposal_args(&config_script, &first_input, 1);
     let script = fixture.proposal_script_with_args(args);
-    let data = proposal_data(status::PROPOSAL_STATUS_OPEN, VOTE_AMOUNT, recipient, 0);
+    let data = proposal_data(status::PROPOSAL_STATUS_OPEN, VOTE_AMOUNT, recipient, 0, 0);
     let tx = create_tx(
         &mut fixture,
         first_input,
@@ -243,7 +251,7 @@ fn test_create_proposal_args_length() {
     let recipient = fixture.recipient_lock_hash();
     let (first_input, _) = creation_input(&mut fixture);
     let script = fixture.proposal_script_with_args(Bytes::from(vec![0u8; 39]));
-    let data = proposal_data(status::PROPOSAL_STATUS_OPEN, VOTE_AMOUNT, recipient, 0);
+    let data = proposal_data(status::PROPOSAL_STATUS_OPEN, VOTE_AMOUNT, recipient, 0, 0);
     let tx = create_tx(
         &mut fixture,
         first_input,
@@ -263,7 +271,13 @@ fn test_create_proposal_wrong_status() {
     let recipient = fixture.recipient_lock_hash();
     let (first_input, script) = creation_input(&mut fixture);
     // A brand new cell already claiming to be finalized.
-    let data = proposal_data(status::PROPOSAL_STATUS_FINALIZED, VOTE_AMOUNT, recipient, 0);
+    let data = proposal_data(
+        status::PROPOSAL_STATUS_FINALIZED,
+        VOTE_AMOUNT,
+        recipient,
+        0,
+        0,
+    );
     let tx = create_tx(
         &mut fixture,
         first_input,
@@ -282,7 +296,27 @@ fn test_create_proposal_nonzero_total_yes() {
     let mut fixture = Fixture::new();
     let recipient = fixture.recipient_lock_hash();
     let (first_input, script) = creation_input(&mut fixture);
-    let data = proposal_data(status::PROPOSAL_STATUS_OPEN, VOTE_AMOUNT, recipient, 1);
+    let data = proposal_data(status::PROPOSAL_STATUS_OPEN, VOTE_AMOUNT, recipient, 1, 0);
+    let tx = create_tx(
+        &mut fixture,
+        first_input,
+        script,
+        MINIMAL_PROPOSAL_CAPACITY,
+        data,
+        true,
+    );
+
+    assert_script_error(&fixture.context, &tx, Error::ProposalDataInvalid);
+}
+
+/// Spec: proposal, "Creating" - `origin_block_number` starts at 0; only the
+/// finalize transition fills it in.
+#[test]
+fn test_create_proposal_nonzero_origin() {
+    let mut fixture = Fixture::new();
+    let recipient = fixture.recipient_lock_hash();
+    let (first_input, script) = creation_input(&mut fixture);
+    let data = proposal_data(status::PROPOSAL_STATUS_OPEN, VOTE_AMOUNT, recipient, 0, 1);
     let tx = create_tx(
         &mut fixture,
         first_input,
@@ -303,7 +337,7 @@ fn test_create_proposal_bond_too_small() {
     let mut fixture = Fixture::new();
     let recipient = fixture.recipient_lock_hash();
     let (first_input, script) = creation_input(&mut fixture);
-    let data = proposal_data(status::PROPOSAL_STATUS_OPEN, VOTE_AMOUNT, recipient, 0);
+    let data = proposal_data(status::PROPOSAL_STATUS_OPEN, VOTE_AMOUNT, recipient, 0, 0);
     let tx = create_tx(
         &mut fixture,
         first_input,
@@ -324,7 +358,7 @@ fn test_create_proposal_requires_its_config_cell() {
     let mut fixture = Fixture::new();
     let recipient = fixture.recipient_lock_hash();
     let (first_input, script) = creation_input(&mut fixture);
-    let data = proposal_data(status::PROPOSAL_STATUS_OPEN, VOTE_AMOUNT, recipient, 0);
+    let data = proposal_data(status::PROPOSAL_STATUS_OPEN, VOTE_AMOUNT, recipient, 0, 0);
     // The config cell exists on chain but is not referenced.
     let tx = create_tx(
         &mut fixture,
@@ -347,7 +381,7 @@ fn test_create_proposal_halted() {
     fixture.refresh_config_cell();
     let recipient = fixture.recipient_lock_hash();
     let (first_input, script) = creation_input(&mut fixture);
-    let data = proposal_data(status::PROPOSAL_STATUS_OPEN, VOTE_AMOUNT, recipient, 0);
+    let data = proposal_data(status::PROPOSAL_STATUS_OPEN, VOTE_AMOUNT, recipient, 0, 0);
     let tx = create_tx(
         &mut fixture,
         first_input,
@@ -539,6 +573,27 @@ fn test_finalize_total_yes_must_be_the_sum() {
     assert_script_error(&fixture.context, &tx, Error::ProposalDataInvalid);
 }
 
+/// Spec: proposal, "Updating to be finalized" - `origin_block_number` has to be
+/// the block that created the proposal cell, not an arbitrary number: it
+/// anchors the "NO" voting window of a challenge.
+#[test]
+fn test_finalize_origin_mismatch() {
+    let mut fixture = Fixture::new();
+    let proposal = open_proposal(&mut fixture);
+    let counting = yes_counting(&mut fixture, &proposal, YES_THRESHOLD);
+    let mut output = finalized_output(&fixture, &proposal, YES_THRESHOLD);
+    output.origin_block_number = proposal.block_number - 1;
+    let tx = update_tx(
+        &mut fixture,
+        &proposal,
+        relative_since(VOTE_DURATION + 1),
+        &output,
+        &[counting.out_point],
+    );
+
+    assert_script_error(&fixture.context, &tx, Error::ProposalDataInvalid);
+}
+
 /// Spec: proposal, "Updating to be finalized" - the hash ranges of the counting
 /// cells must not overlap, otherwise a voter could be counted twice.
 #[test]
@@ -704,6 +759,31 @@ fn test_pass_non_block_metric_since() {
     );
 
     assert_script_error(&fixture.context, &tx, Error::SinceInvalid);
+}
+
+/// Spec: proposal, "Updating to be passed" - the `origin_block_number` of the
+/// finalized cell is consensus relevant, so it may not be rewritten on the way
+/// to passed.
+#[test]
+fn test_pass_preserves_origin() {
+    let mut fixture = Fixture::new();
+    let proposal = proposal_with_status(
+        &mut fixture,
+        status::PROPOSAL_STATUS_FINALIZED,
+        YES_THRESHOLD,
+    );
+    let mut output = finalized_output(&fixture, &proposal, YES_THRESHOLD);
+    output.status = status::PROPOSAL_STATUS_PASSED;
+    output.origin_block_number = proposal.origin_block_number + 1;
+    let tx = update_tx(
+        &mut fixture,
+        &proposal,
+        relative_since(CHALLENGE_TIME + 1),
+        &output,
+        &[],
+    );
+
+    assert_script_error(&fixture.context, &tx, Error::ProposalDataInvalid);
 }
 
 // --------------------------------------------------------------------------

@@ -10,6 +10,7 @@ table ProposalCellData {
     requested_amount: Uint64,
     recipient_lock_hash: Bytes20,
     total_yes: Uint64,
+    origin_block_number: Uint64,
 }
 
 table Vote {

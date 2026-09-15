@@ -23,6 +23,7 @@ table ProposalCellData {
     requested_amount: Uint64,
     recipient_lock_hash: Bytes20,
     total_yes: Uint64,
+    origin_block_number: Uint64,
 }
 ```
 
@@ -44,7 +45,7 @@ The type script goes through several phases, which are described in the followin
 
 
 ### Creating
-In this phase, a proposal cell is created. The `args` must follow the Type ID rule, as described in the `Script` section, and the `status` field must be 0. The `total_yes` field should be 0.
+In this phase, a proposal cell is created. The `args` must follow the Type ID rule, as described in the `Script` section, and the `status` field must be 0. The `total_yes` field should be 0. The `origin_block_number` field should be 0.
 
 The cell's `capacity` must be greater than or equal to `config.minimal_proposal_capacity`. If the proposal fails following a challenge, this capacity represents the assets to be lost.
 
@@ -63,6 +64,7 @@ The input capacity must equal the output capacity of the proposal cells. The bon
 
 Then it checks the hash ranges of all counting cells: they must not overlap. If any value v satisfies h1 <= v <= h2 and h3 <= v <= h4, then the hash ranges [h1, h2] and [h3, h4] overlap.
 
+The `origin_block_number` should be equal to the block number in which the proposal cell is created.
 
 Finally, the `status` field in cell data should changed from `0`("proposal") to `1`("finalized").
 

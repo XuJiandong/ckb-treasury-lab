@@ -108,21 +108,38 @@ fn create(proposal_id: &[u8; constants::PROPOSAL_ID_LEN]) -> Result<(), Error> {
     let hash_range = read_hash_range(&counting)?;
     let declared_amount = u64_of(counting.vote_amount());
 
-    // The proposal cell is referenced through the cell deps, exactly like in the
-    // challenge phase where the already finalized cell is used. It also carries
-    // the pointer to the config cell.
+    // The proposal cell is referenced through the cell deps and also carries the
+    // pointer to the config cell.
     let proposal = proposal::find_proposal(proposal_id)?;
     let config = Config::load(&proposal.config_id)?;
-    if proposal.status != status::PROPOSAL_STATUS_OPEN
-        && proposal.status != status::PROPOSAL_STATUS_FINALIZED
-    {
+    // A "YES" counting cell collects the votes of the proposal itself, so the
+    // referenced cell has to be the proposal cell. A "NO" counting cell is
+    // collected for a challenge, so it may reference the proposal cell or the
+    // finalized proposal cell that replaces it.
+    let is_proposal = proposal.status == status::PROPOSAL_STATUS_OPEN;
+    let is_finalized = proposal.status == status::PROPOSAL_STATUS_FINALIZED;
+    let status_allowed = if direction == status::DIRECTION_YES {
+        is_proposal
+    } else {
+        is_proposal || is_finalized
+    };
+    if !status_allowed {
         return Err(Error::ProposalStatusInvalidForCounting);
     }
 
     // "YES" votes are counted before the proposal is consumed, "NO" votes are
     // counted for a challenge; both need the vote cells as cell deps.
-    // `vote_window` is a block count, directly comparable with the block
-    // numbers of the proposal and vote cells.
+    //
+    // The window is anchored at the block that created the original proposal
+    // cell. An open proposal cell *is* that cell, but a finalized cell was
+    // created after voting ended, so it carries the origin in its data.
+    let window_origin = if is_finalized {
+        proposal.origin_block_number
+    } else {
+        proposal.block_number
+    };
+    // `vote_window` is a block count, directly comparable with the block numbers
+    // of the proposal and vote cells.
     let vote_window = config.vote_window;
     let mut voter_locks: Vec<[u8; 32]> = Vec::new();
     let mut total_amount = 0u64;
@@ -159,10 +176,10 @@ fn create(proposal_id: &[u8; constants::PROPOSAL_ID_LEN]) -> Result<(), Error> {
         }
 
         // The vote must have been cast inside the voting window, measured from
-        // the block that created the proposal cell.
-        let vote_block = proposal::block_number_of(index)?;
+        // the block that created the original proposal cell.
+        let vote_block = proposal::block_number_of(index, Source::CellDep)?;
         let offset = vote_block
-            .checked_sub(proposal.block_number)
+            .checked_sub(window_origin)
             .ok_or(Error::VoteOutsideWindow)?;
         if offset >= vote_window {
             return Err(Error::VoteOutsideWindow);

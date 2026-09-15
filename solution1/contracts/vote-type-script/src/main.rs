@@ -139,7 +139,7 @@ fn run() -> Result<(), Error> {
         }
         // The deposit must predate the proposal, which makes the "vote,
         // withdraw and vote again" trick impossible.
-        if proposal::block_number_of(index)? >= proposal.block_number {
+        if proposal::block_number_of(index, Source::CellDep)? >= proposal.block_number {
             #[cfg(feature = "enable_log")]
             warn!("a DAO deposit created after the proposal may not be used to vote");
             return Err(Error::DaoDepositTooNew);

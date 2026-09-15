@@ -814,6 +814,12 @@ impl ::core::fmt::Display for ProposalCellData {
             self.recipient_lock_hash()
         )?;
         write!(f, ", {}: {}", "total_yes", self.total_yes())?;
+        write!(
+            f,
+            ", {}: {}",
+            "origin_block_number",
+            self.origin_block_number()
+        )?;
         let extra_count = self.count_extra_fields();
         if extra_count != 0 {
             write!(f, ", .. ({} fields)", extra_count)?;
@@ -828,12 +834,12 @@ impl ::core::default::Default for ProposalCellData {
     }
 }
 impl ProposalCellData {
-    const DEFAULT_VALUE: [u8; 65] = [
-        65, 0, 0, 0, 24, 0, 0, 0, 25, 0, 0, 0, 29, 0, 0, 0, 37, 0, 0, 0, 57, 0, 0, 0, 0, 0, 0, 0,
+    const DEFAULT_VALUE: [u8; 77] = [
+        77, 0, 0, 0, 28, 0, 0, 0, 29, 0, 0, 0, 33, 0, 0, 0, 41, 0, 0, 0, 61, 0, 0, 0, 69, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     ];
-    pub const FIELD_COUNT: usize = 5;
+    pub const FIELD_COUNT: usize = 6;
     pub fn total_size(&self) -> usize {
         molecule::unpack_number(self.as_slice()) as usize
     }
@@ -877,8 +883,14 @@ impl ProposalCellData {
     pub fn total_yes(&self) -> Uint64 {
         let slice = self.as_slice();
         let start = molecule::unpack_number(&slice[20..]) as usize;
+        let end = molecule::unpack_number(&slice[24..]) as usize;
+        Uint64::new_unchecked(self.0.slice(start..end))
+    }
+    pub fn origin_block_number(&self) -> Uint64 {
+        let slice = self.as_slice();
+        let start = molecule::unpack_number(&slice[24..]) as usize;
         if self.has_extra_fields() {
-            let end = molecule::unpack_number(&slice[24..]) as usize;
+            let end = molecule::unpack_number(&slice[28..]) as usize;
             Uint64::new_unchecked(self.0.slice(start..end))
         } else {
             Uint64::new_unchecked(self.0.slice(start..))
@@ -916,6 +928,7 @@ impl molecule::prelude::Entity for ProposalCellData {
             .requested_amount(self.requested_amount())
             .recipient_lock_hash(self.recipient_lock_hash())
             .total_yes(self.total_yes())
+            .origin_block_number(self.origin_block_number())
     }
 }
 #[derive(Clone, Copy)]
@@ -947,6 +960,12 @@ impl<'r> ::core::fmt::Display for ProposalCellDataReader<'r> {
             self.recipient_lock_hash()
         )?;
         write!(f, ", {}: {}", "total_yes", self.total_yes())?;
+        write!(
+            f,
+            ", {}: {}",
+            "origin_block_number",
+            self.origin_block_number()
+        )?;
         let extra_count = self.count_extra_fields();
         if extra_count != 0 {
             write!(f, ", .. ({} fields)", extra_count)?;
@@ -955,7 +974,7 @@ impl<'r> ::core::fmt::Display for ProposalCellDataReader<'r> {
     }
 }
 impl<'r> ProposalCellDataReader<'r> {
-    pub const FIELD_COUNT: usize = 5;
+    pub const FIELD_COUNT: usize = 6;
     pub fn total_size(&self) -> usize {
         molecule::unpack_number(self.as_slice()) as usize
     }
@@ -999,8 +1018,14 @@ impl<'r> ProposalCellDataReader<'r> {
     pub fn total_yes(&self) -> Uint64Reader<'r> {
         let slice = self.as_slice();
         let start = molecule::unpack_number(&slice[20..]) as usize;
+        let end = molecule::unpack_number(&slice[24..]) as usize;
+        Uint64Reader::new_unchecked(&self.as_slice()[start..end])
+    }
+    pub fn origin_block_number(&self) -> Uint64Reader<'r> {
+        let slice = self.as_slice();
+        let start = molecule::unpack_number(&slice[24..]) as usize;
         if self.has_extra_fields() {
-            let end = molecule::unpack_number(&slice[24..]) as usize;
+            let end = molecule::unpack_number(&slice[28..]) as usize;
             Uint64Reader::new_unchecked(&self.as_slice()[start..end])
         } else {
             Uint64Reader::new_unchecked(&self.as_slice()[start..])
@@ -1058,6 +1083,7 @@ impl<'r> molecule::prelude::Reader<'r> for ProposalCellDataReader<'r> {
         Uint64Reader::verify(&slice[offsets[2]..offsets[3]], compatible)?;
         Bytes20Reader::verify(&slice[offsets[3]..offsets[4]], compatible)?;
         Uint64Reader::verify(&slice[offsets[4]..offsets[5]], compatible)?;
+        Uint64Reader::verify(&slice[offsets[5]..offsets[6]], compatible)?;
         Ok(())
     }
 }
@@ -1068,9 +1094,10 @@ pub struct ProposalCellDataBuilder {
     pub(crate) requested_amount: Uint64,
     pub(crate) recipient_lock_hash: Bytes20,
     pub(crate) total_yes: Uint64,
+    pub(crate) origin_block_number: Uint64,
 }
 impl ProposalCellDataBuilder {
-    pub const FIELD_COUNT: usize = 5;
+    pub const FIELD_COUNT: usize = 6;
     pub fn status<T>(mut self, v: T) -> Self
     where
         T: ::core::convert::Into<Byte>,
@@ -1106,6 +1133,13 @@ impl ProposalCellDataBuilder {
         self.total_yes = v.into();
         self
     }
+    pub fn origin_block_number<T>(mut self, v: T) -> Self
+    where
+        T: ::core::convert::Into<Uint64>,
+    {
+        self.origin_block_number = v.into();
+        self
+    }
 }
 impl molecule::prelude::Builder for ProposalCellDataBuilder {
     type Entity = ProposalCellData;
@@ -1117,6 +1151,7 @@ impl molecule::prelude::Builder for ProposalCellDataBuilder {
             + self.requested_amount.as_slice().len()
             + self.recipient_lock_hash.as_slice().len()
             + self.total_yes.as_slice().len()
+            + self.origin_block_number.as_slice().len()
     }
     fn write<W: molecule::io::Write>(&self, writer: &mut W) -> molecule::io::Result<()> {
         let mut total_size = molecule::NUMBER_SIZE * (Self::FIELD_COUNT + 1);
@@ -1131,6 +1166,8 @@ impl molecule::prelude::Builder for ProposalCellDataBuilder {
         total_size += self.recipient_lock_hash.as_slice().len();
         offsets.push(total_size);
         total_size += self.total_yes.as_slice().len();
+        offsets.push(total_size);
+        total_size += self.origin_block_number.as_slice().len();
         writer.write_all(&molecule::pack_number(total_size as molecule::Number))?;
         for offset in offsets.into_iter() {
             writer.write_all(&molecule::pack_number(offset as molecule::Number))?;
@@ -1140,6 +1177,7 @@ impl molecule::prelude::Builder for ProposalCellDataBuilder {
         writer.write_all(self.requested_amount.as_slice())?;
         writer.write_all(self.recipient_lock_hash.as_slice())?;
         writer.write_all(self.total_yes.as_slice())?;
+        writer.write_all(self.origin_block_number.as_slice())?;
         Ok(())
     }
     fn build(&self) -> Self::Entity {

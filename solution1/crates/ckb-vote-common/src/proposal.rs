@@ -36,7 +36,14 @@ pub struct ProposalRef {
     pub status: u8,
     /// `total_yes` field of the cell data.
     pub total_yes: u64,
-    /// The block number in which the proposal cell was created.
+    /// The block number in which the *original* proposal cell was created.
+    ///
+    /// It is `0` while the proposal is open and is filled in when the proposal
+    /// is finalized: the finalized cell is created after the voting window is
+    /// over, so its own [`block_number`](Self::block_number) cannot anchor the
+    /// voting window, and the counting script falls back to this field.
+    pub origin_block_number: u64,
+    /// The block number in which the referenced cell was created.
     pub block_number: u64,
 }
 
@@ -77,19 +84,22 @@ pub fn find_proposal(proposal_id: &[u8; constants::PROPOSAL_ID_LEN]) -> Result<P
             config_id,
             status: proposal.status().as_slice()[0],
             total_yes: u64_of(proposal.total_yes()),
-            block_number: block_number_of(index)?,
+            origin_block_number: u64_of(proposal.origin_block_number()),
+            block_number: block_number_of(index, Source::CellDep)?,
         });
     }
     found.ok_or(Error::ProposalCellNotFound)
 }
 
-/// Reads the block number in which the cell at `index` of `cell_deps` was created.
+/// Reads the block number in which the cell at `index` of `source` was created.
 ///
 /// ckb-vm resolves the creating block of a cell from the node's own chain data;
 /// the syscall only succeeds when that block header is listed in the
 /// transaction's `header_deps`, which is what makes the value trustworthy
-/// on-chain.
-pub fn block_number_of(index: usize) -> Result<u64, Error> {
-    let header = load_header(index, Source::CellDep).map_err(|_| Error::HeaderMissing)?;
+/// on-chain. `source` is usually `Source::CellDep`; `Source::Input` reads the
+/// creating block of an input cell, which is how the proposal script learns the
+/// block in which the open proposal cell it finalizes was created.
+pub fn block_number_of(index: usize, source: Source) -> Result<u64, Error> {
+    let header = load_header(index, source).map_err(|_| Error::HeaderMissing)?;
     Ok(u64_of(header.raw().number()))
 }

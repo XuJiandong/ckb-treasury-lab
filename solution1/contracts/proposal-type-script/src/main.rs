@@ -30,7 +30,7 @@ use ckb_vote_common::{
     config::{Config, u64_of},
     constants::{CONFIG_ID_LEN, PROPOSAL_ARGS_LEN, TYPE_ID_LEN},
     error::Error,
-    hash, range, rc, since, status,
+    hash, proposal, range, rc, since, status,
 };
 use ckb_vote_types::molecules::types::{Counting, ProposalCellData};
 
@@ -114,6 +114,9 @@ fn create(config_id: &[u8; CONFIG_ID_LEN]) -> Result<(), Error> {
     if u64_of(proposal.total_yes()) != 0 {
         return Err(Error::ProposalDataInvalid);
     }
+    if u64_of(proposal.origin_block_number()) != 0 {
+        return Err(Error::ProposalDataInvalid);
+    }
 
     // The capacity is the bond of the proposal: it is what a challenger wins,
     // so it has to be at least `config.minimal_proposal_capacity`.
@@ -154,6 +157,11 @@ fn update(script: &Script, config_id: &[u8; CONFIG_ID_LEN]) -> Result<(), Error>
             if since::relative_block_number(since)? <= config.challenge_time {
                 return Err(Error::ChallengeTimeNotElapsed);
             }
+            // The origin anchors the voting window of a challenge, so it is
+            // consensus relevant and may not be rewritten on the way to passed.
+            if u64_of(input.origin_block_number()) != u64_of(output.origin_block_number()) {
+                return Err(Error::ProposalDataInvalid);
+            }
             Ok(())
         }
         _ => Err(Error::ProposalStatusInvalid),
@@ -188,6 +196,15 @@ fn finalize(
     let lock = load_cell_lock(0, Source::GroupOutput).map_err(|_| Error::SyscallError)?;
     if !config.is_always_success_lock(&lock) {
         return Err(Error::AlwaysSuccessLockRequired);
+    }
+
+    // The origin anchors the voting window of a challenge: a challenge measures
+    // its "NO" votes from the block that created the *original* proposal cell,
+    // which is exactly the open cell being consumed here. ckb-vm resolves that
+    // block from the header listed in `header_deps`.
+    let origin = proposal::block_number_of(0, Source::Input)?;
+    if u64_of(output.origin_block_number()) != origin {
+        return Err(Error::ProposalDataInvalid);
     }
 
     // Sum the "YES" certificates and record the result in `total_yes`.
@@ -240,6 +257,7 @@ fn settle(script: &Script, config_id: &[u8; CONFIG_ID_LEN]) -> Result<(), Error>
             // 2. A challenger wins by collecting at least as much "NO" weight
             //    as the certified "YES" votes; the bond is the incentive.
             let tally = collect_counting_cells(script, &config, status::DIRECTION_NO)?;
+            // TODO: challenge rules
             if tally.count > 0 && tally.total_amount >= u64_of(proposal.total_yes()) {
                 #[cfg(feature = "enable_log")]
                 warn!(

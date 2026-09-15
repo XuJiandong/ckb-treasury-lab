@@ -143,6 +143,7 @@ pub fn proposal_data(
     requested_amount: u64,
     recipient_lock_hash: [u8; 20],
     total_yes: u64,
+    origin_block_number: u64,
 ) -> Bytes {
     ProposalCellData::new_builder()
         .status(status)
@@ -150,6 +151,7 @@ pub fn proposal_data(
         .requested_amount(requested_amount.to_le_bytes())
         .recipient_lock_hash(recipient_lock_hash)
         .total_yes(total_yes.to_le_bytes())
+        .origin_block_number(origin_block_number.to_le_bytes())
         .build()
         .as_slice()
         .to_vec()
@@ -224,6 +226,9 @@ pub struct ProposalSpec {
     pub type_id: [u8; constants::TYPE_ID_LEN],
     pub status: u8,
     pub total_yes: u64,
+    /// The block that created the original proposal cell: `0` for an open
+    /// proposal, the original block for a finalized or passed one.
+    pub origin_block_number: u64,
     pub requested_amount: u64,
     pub recipient_lock_hash: [u8; 20],
     pub capacity: u64,
@@ -271,6 +276,8 @@ pub struct Proposal {
     pub requested_amount: u64,
     pub recipient_lock_hash: [u8; 20],
     pub capacity: u64,
+    /// The `origin_block_number` recorded in the cell data.
+    pub origin_block_number: u64,
     /// The header of the creating block; list it in `header_deps` when a script
     /// reads this cell's block number.
     pub block_hash: Byte32,
@@ -293,6 +300,8 @@ pub struct PlacedCell {
 pub struct ProposalOutput {
     pub status: u8,
     pub total_yes: u64,
+    /// The `origin_block_number` of the output cell data.
+    pub origin_block_number: u64,
     pub requested_amount: u64,
     pub recipient_lock_hash: [u8; 20],
     pub capacity: u64,
@@ -567,6 +576,7 @@ impl Fixture {
             type_id: PROPOSAL_TYPE_ID,
             status: status::PROPOSAL_STATUS_OPEN,
             total_yes: 0,
+            origin_block_number: 0,
             requested_amount: VOTE_AMOUNT,
             recipient_lock_hash: hash::blake160(self.recipient_lock.as_slice()),
             capacity: PROPOSAL_CAPACITY,
@@ -583,6 +593,7 @@ impl Fixture {
             spec.requested_amount,
             spec.recipient_lock_hash,
             spec.total_yes,
+            spec.origin_block_number,
         );
         let out_point = self.create_cell(&spec.lock, spec.capacity, Some(script.clone()), data);
         let block_hash = self.at_block(&out_point, spec.block);
@@ -593,6 +604,7 @@ impl Fixture {
             requested_amount: spec.requested_amount,
             recipient_lock_hash: spec.recipient_lock_hash,
             capacity: spec.capacity,
+            origin_block_number: spec.origin_block_number,
             block_hash,
             block_number: spec.block,
         }
@@ -604,6 +616,7 @@ impl Fixture {
         ProposalOutput {
             status: status::PROPOSAL_STATUS_FINALIZED,
             total_yes: 0,
+            origin_block_number: proposal.origin_block_number,
             requested_amount: proposal.requested_amount,
             recipient_lock_hash: proposal.recipient_lock_hash,
             capacity: proposal.capacity,

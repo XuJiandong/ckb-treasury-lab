@@ -8,7 +8,8 @@
 
 use crate::helpers::{
     CERTIFICATE_CAPACITY, FUNDING_CAPACITY, Fixture, MAX_CYCLES, ONE_CKB, PlacedCell, Proposal,
-    VOTE_AMOUNT, VOTE_WINDOW, VoteSpec, assert_script_error, counting_data, dep, lock_prefix,
+    VOTE_AMOUNT, VOTE_DURATION, VOTE_WINDOW, VoteSpec, assert_script_error, counting_data, dep,
+    lock_prefix,
 };
 use ckb_testtool::ckb_types::{
     bytes::Bytes,
@@ -231,14 +232,22 @@ fn test_create_counting_cell() {
     println!("consume cycles: {}", cycles);
 }
 
-/// Spec: counting, "Processing" - the proposal may be open or finalized: a
-/// challenger counts the "NO" votes while the finalized proposal cell is alive.
+/// Spec: counting, "Others" - collecting "no" votes is not tied to the open
+/// phase: the challenger counts the "NO" votes against the finalized proposal
+/// cell, which only exists after voting ended. The window is anchored at
+/// `origin_block_number`, the block that created the original proposal cell, so
+/// the earlier votes stay countable.
 #[test]
 fn test_create_counting_cell_for_a_finalized_proposal() {
     let mut fixture = Fixture::new();
-    let (_, mut plan) = counting_setup(&mut fixture);
+    let (proposal, mut plan) = counting_setup(&mut fixture);
     let mut spec = fixture.proposal_spec();
     spec.status = status::PROPOSAL_STATUS_FINALIZED;
+    // The finalized cell replaces the open one only after `vote_duration`
+    // blocks, so it lives at a block later than every vote.
+    spec.block = proposal.block_number + VOTE_DURATION + 1;
+    // ... and it records the block that created the original proposal cell.
+    spec.origin_block_number = proposal.block_number;
     let finalized = fixture.proposal_cell(&spec);
     // The proposal type script is unique, so `id` does not change; the "NO"
     // counting cell is collected during the challenge phase.
@@ -255,6 +264,59 @@ fn test_create_counting_cell_for_a_finalized_proposal() {
         .verify_tx(&tx, MAX_CYCLES)
         .expect("a finalized proposal can be counted for a challenge");
     println!("consume cycles: {}", cycles);
+}
+
+/// Spec: counting, "Others" - when a finalized proposal cell is referenced the
+/// window is measured from `origin_block_number`, not from the block that
+/// created the finalized cell: a vote cast exactly `config.vote_window` blocks
+/// after the original proposal is outside the window, even though it predates
+/// the finalized cell by many blocks.
+#[test]
+fn test_counting_finalized_window_anchored_at_origin() {
+    let mut fixture = Fixture::new();
+    let (proposal, mut plan) = counting_setup(&mut fixture);
+    let mut spec = fixture.proposal_spec();
+    spec.status = status::PROPOSAL_STATUS_FINALIZED;
+    spec.block = proposal.block_number + VOTE_DURATION + 1;
+    spec.origin_block_number = proposal.block_number;
+    let finalized = fixture.proposal_cell(&spec);
+    plan.proposal = finalized.clone();
+    plan.direction = status::DIRECTION_NO;
+    plan.votes = vec![vote_at(&fixture, &proposal, VOTE_WINDOW)];
+    for vote in &mut plan.votes {
+        vote.proposal_id = finalized.id;
+        vote.direction = status::DIRECTION_NO;
+    }
+    let tx = counting_tx(&mut fixture, &plan);
+
+    assert_script_error(&fixture.context, &tx, Error::VoteOutsideWindow);
+}
+
+/// Spec: counting, "Others" - a "YES" counting cell has to reference the
+/// proposal cell, so counting "YES" votes against a finalized proposal cell is
+/// rejected; only "NO" votes may be collected during the challenge phase.
+#[test]
+fn test_counting_yes_for_finalized_proposal_invalid() {
+    let mut fixture = Fixture::new();
+    let (proposal, mut plan) = counting_setup(&mut fixture);
+    let mut spec = fixture.proposal_spec();
+    spec.status = status::PROPOSAL_STATUS_FINALIZED;
+    spec.block = proposal.block_number + VOTE_DURATION + 1;
+    spec.origin_block_number = proposal.block_number;
+    let finalized = fixture.proposal_cell(&spec);
+    // The proposal type script is unique, so `id` does not change; the "YES"
+    // counting cell still has to point at the open proposal cell.
+    plan.proposal = finalized.clone();
+    for vote in &mut plan.votes {
+        vote.proposal_id = finalized.id;
+    }
+    let tx = counting_tx(&mut fixture, &plan);
+
+    assert_script_error(
+        &fixture.context,
+        &tx,
+        Error::ProposalStatusInvalidForCounting,
+    );
 }
 
 /// Spec: counting, "Script" - the args are 20 bytes, the ckb-blake160-hash of
@@ -318,8 +380,8 @@ fn test_counting_proposal_missing() {
     assert_script_error(&fixture.context, &tx, Error::ProposalCellNotFound);
 }
 
-/// Spec: counting, "Processing" - a counting cell is only valid for an open or
-/// a finalized proposal; a passed proposal can no longer be counted.
+/// Spec: counting, "Others" - a "YES" counting cell has to reference the
+/// proposal cell; a passed proposal can no longer be counted.
 #[test]
 fn test_counting_proposal_status_invalid() {
     let mut fixture = Fixture::new();
