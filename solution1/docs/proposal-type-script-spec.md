@@ -74,7 +74,13 @@ The `status` field in the cell data should change from `1` ("finalized") to `2` 
 See [RFC](https://github.com/nervosnetwork/rfcs/blob/master/rfcs/0017-tx-valid-since/0017-tx-valid-since.md) for more information.
 
 ### Receiving Assets
-The passed proposal cell, together with a treasury provider (not described in this spec), can generate a new cell holding `request_amount` assets and locked by the script identified by `recipient_lock_hash`. The proposal cell must be consumed entirely in this transaction. The treasury cell supplies the assets, but it is not described here.
+The passed proposal cell, together with a treasury provider (not described in this spec), can generate a new cell that holds `request_amount` assets and is locked by the script identified by `recipient_lock_hash`. The proposal cell must be consumed entirely in this transaction. The treasury cell supplies the assets, though it is not described here. 
+
+The treasury cell checks the proposal cell for the following:
+1. `code_hash`
+2. `hash_type`
+3. the first 20 bytes of the config id
+4. the proposal cell's `status` is "passed"
 
 
 ### Updating to be challenged
@@ -86,6 +92,7 @@ It sums all "NO" values (called `total_no`) in the counting cells' cell data. Th
 The `status` field in input cell data should be `1`("finalized").
 
 When a challenge succeeds, the finalized proposal cell is consumed, and the challenger receives all assets in the proposal cell as an incentive.
+The receiver's lock script should be one of lock script used in counting cells.
 
 ### Recycling the Proposal Cell
 Once the sum of `config.vote_duration` and `config.challenge_time` (both block counts) has elapsed, the initiator can consume the proposal cell and recycle its assets if the proposal fails to pass.

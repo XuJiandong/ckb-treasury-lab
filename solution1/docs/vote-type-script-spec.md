@@ -34,6 +34,9 @@ The script iterates over all cell_deps to find the proposal type script whose ha
 
 While iterating, the script collects all DAO deposit cells whose lock script matches the voter's lock script. A cell is counted as a DAO deposit only if its type script is the Nervos DAO type script, checked via `code_hash` and `hash_type`; cells with any other type script are ignored. The sum of all these DAO deposits must equal the `vote_amount` in the cell data. All DAO deposit cells should be older than the proposal cell, as determined by comparing the `number` in the `header` (block number).
 
+Since items in `cell_deps` can be duplicated after a `dep_groups` is expanded, the script should check that no duplicated OutPoint appears in `cell_dep`.
+
+
 ## Others
 Users must keep vote cells alive throughout the voting process. Any user can withdraw an existing vote by consuming the vote cell. A user may also cast a vote using only part of a DAO deposit: the script always counts a referenced deposit cell in full, so the voter uses a part of a larger deposit by splitting it first and referencing only the DAO deposit cell that holds that part.
 

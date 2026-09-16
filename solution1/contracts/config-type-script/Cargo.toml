@@ -15,4 +15,4 @@ library = []
 native-simulator = ["library", "ckb-std/native-simulator"]
 # Emit the `log!`, `warn!` and `error!` messages of this script to the node log
 # (`ckb-std`'s logger).
-enable_log = ["ckb-std/log"]
+enable_log = ["ckb-std/log", "ckb-vote-common/enable_log"]

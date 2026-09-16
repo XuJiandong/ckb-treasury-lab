@@ -13,6 +13,7 @@
 #![cfg_attr(not(test), no_std)]
 extern crate alloc;
 
+pub mod cell_dep;
 pub mod config;
 pub mod constants;
 pub mod error;

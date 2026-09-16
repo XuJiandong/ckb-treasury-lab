@@ -7,3 +7,8 @@ edition = "2024"
 ckb-std = { version = "1.1", features = ["type-id"] }
 ckb-hash = { version = "1.1", default-features = false, features = ["ckb-contract"] }
 ckb-vote-types = { path = "../ckb-vote-types" }
+
+[features]
+# Logging is on by default in every script: this forwards the `warn!` messages
+# of the shared code to the node log (`ckb-std`'s logger).
+enable_log = ["ckb-std/log"]

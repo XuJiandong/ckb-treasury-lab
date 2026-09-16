@@ -202,7 +202,7 @@ fn finalize(
     // its "NO" votes from the block that created the *original* proposal cell,
     // which is exactly the open cell being consumed here. ckb-vm resolves that
     // block from the header listed in `header_deps`.
-    let origin = proposal::block_number_of(0, Source::Input)?;
+    let origin = proposal::block_number_of(0, Source::GroupInput)?;
     if u64_of(output.origin_block_number()) != origin {
         return Err(Error::ProposalDataInvalid);
     }
@@ -257,8 +257,17 @@ fn settle(script: &Script, config_id: &[u8; CONFIG_ID_LEN]) -> Result<(), Error>
             // 2. A challenger wins by collecting at least as much "NO" weight
             //    as the certified "YES" votes; the bond is the incentive.
             let tally = collect_counting_cells(script, &config, status::DIRECTION_NO)?;
-            // TODO: challenge rules
             if tally.count > 0 && tally.total_amount >= u64_of(proposal.total_yes()) {
+                // The challenger is the owner of the "NO" certificates, so the
+                // bond has to reach a lock script one of them uses; otherwise
+                // the challenge would be settled for somebody else's benefit.
+                if !challenge_reward_present(&tally)? {
+                    #[cfg(feature = "enable_log")]
+                    warn!(
+                        "the challenge does not pay the lock script of any of its counting cells"
+                    );
+                    return Err(Error::ChallengeRewardMissing);
+                }
                 #[cfg(feature = "enable_log")]
                 warn!(
                     "the proposal was challenged: {} NO shannons against {} YES shannons",
@@ -328,6 +337,12 @@ struct Tally {
     total_amount: u64,
     /// How many counting cells were found.
     count: usize,
+    /// The lock script hash of every counting cell that was found.
+    ///
+    /// A counting cell is created and owned by the party that collects the
+    /// votes, so its lock script identifies the initiator ("YES") or the
+    /// challenger ("NO").
+    lock_hashes: Vec<[u8; 32]>,
 }
 
 /// Collects the counting cells of `direction` referenced by this transaction.
@@ -345,6 +360,7 @@ fn collect_counting_cells(script: &Script, config: &Config, direction: u8) -> Re
     // The counting cells point back at this very proposal cell.
     let proposal_id = hash::script_id(script);
     let mut ranges: Vec<range::HashRange> = Vec::new();
+    let mut lock_hashes: Vec<[u8; 32]> = Vec::new();
     let mut total_amount = 0u64;
 
     for source in [Source::Input, Source::CellDep] {
@@ -367,6 +383,8 @@ fn collect_counting_cells(script: &Script, config: &Config, direction: u8) -> Re
             // `HashRange::new` enforces it.
             let hash_range = read_hash_range(&counting)?;
             ranges.push(hash_range);
+            lock_hashes
+                .push(load_cell_lock_hash(index, source).map_err(|_| Error::CountingCellInvalid)?);
             total_amount = total_amount
                 .checked_add(u64_of(counting.vote_amount()))
                 .ok_or(Error::AmountOverflow)?;
@@ -380,7 +398,21 @@ fn collect_counting_cells(script: &Script, config: &Config, direction: u8) -> Re
     Ok(Tally {
         total_amount,
         count: ranges.len(),
+        lock_hashes,
     })
+}
+
+/// Tells whether the transaction pays one of the counting cells' lock scripts,
+/// that is whether the challenger receives the bond.
+///
+/// `docs/proposal-type-script-spec.md`, "Updating to be challenged": *"The
+/// receiver's lock script should be one of lock script used in counting
+/// cells."* The counting cells are the challenger's certificates and are
+/// controlled by their creator, so their lock script is the identity that is
+/// allowed to collect the incentive.
+fn challenge_reward_present(tally: &Tally) -> Result<bool, Error> {
+    Ok(QueryIter::new(load_cell_lock_hash, Source::Output)
+        .any(|lock_hash| tally.lock_hashes.contains(&lock_hash)))
 }
 
 /// Tells whether the voting and the challenge windows have elapsed, which is

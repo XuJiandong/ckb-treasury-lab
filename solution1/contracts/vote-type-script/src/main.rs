@@ -25,6 +25,7 @@ use ckb_std::{
     },
 };
 use ckb_vote_common::{
+    cell_dep,
     config::{self, u64_of},
     constants,
     error::Error,
@@ -121,6 +122,10 @@ fn run() -> Result<(), Error> {
     if proposal.status != status::PROPOSAL_STATUS_OPEN {
         return Err(Error::ProposalNotOpen);
     }
+
+    // A transaction may not reference the same cell twice, however the
+    // dependency was written down.
+    cell_dep::ensure_unique_cell_deps()?;
 
     // Sum up the voter's DAO deposits and compare them with the declared amount.
     let mut total_amount = 0u64;

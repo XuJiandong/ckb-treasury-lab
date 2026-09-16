@@ -70,6 +70,9 @@ pub enum Error {
     RecipientOutputMissing = 54,
     /// The recipient output holds less than `requested_amount`.
     RecipientAmountTooSmall = 55,
+    /// A successful challenge does not pay a lock script used by its counting
+    /// cells, so the challenger would not receive the bond.
+    ChallengeRewardMissing = 56,
 
     // ------------------------------------------------------ vote type script
     /// The vote cell data is not a well formed `Vote`.
@@ -88,6 +91,9 @@ pub enum Error {
     VoteAmountMismatch = 66,
     /// More than one vote cell for the same proposal is created in one transaction.
     MultipleVoteCells = 67,
+    /// The same `OutPoint` appears more than once in `cell_deps`, so a DAO
+    /// deposit could be counted (and thus voted) more than once.
+    DuplicatedCellDep = 68,
 
     // -------------------------------------------------- counting type script
     /// The counting cell data is not a well formed `Counting`.
