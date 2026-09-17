@@ -22,18 +22,22 @@ It has following structures in molecule format:
 ```
 table VotingConfig {
     emergent_halt: byte,
-    vote_code_hash: Bytes32,
+    vote_code_hash: Byte32,
     vote_hash_type: byte,
-    counting_code_hash: Bytes32,
+    counting_code_hash: Byte32,
     counting_hash_type: byte,
+    always_success_code_hash: Byte32,
+    always_success_hash_type: byte,
     yes_threshold: Uint64,
     minimal_proposal_capacity: Uint64,
     vote_duration: Uint64,
     vote_window: Uint64,
     challenge_time: Uint64,
-    veto_lock_script_hash: Bytes32,
+    veto_lock_script_hash: Byte32,
 }
 ```
+
+The `vote_duration`, `vote_window` and `challenge_time` fields are plain block counts (not `since` values): a script compares them with the relative `since` of the proposal input, or with the block numbers that created the cells.
 
 The `emergent_halt` is read by all type scripts (the proposal type script, the vote type script, and the count type script). When set to `1`, all scripts fail. Updating this field halts the voting system.
 

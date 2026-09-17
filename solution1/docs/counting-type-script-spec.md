@@ -16,8 +16,8 @@ No Witness is required.
 The cell data has the following structure in molecule format:
 ```
 table Counting {
-    start_hash: Bytes2,
-    end_hash: Bytes2,
+    start_hash: Byte2,
+    end_hash: Byte2,
     direction: byte,
     vote_amount: Uint64,
 }
@@ -35,11 +35,15 @@ While iterating, it collects all vote cells whose `code_hash` and `hash_type` ma
 
 The script sums the `vote_amount` of all vote cells. The sum must equal the `vote_amount` in this cell's data. Also, the `direction` of every vote cell must equal the `direction` in this cell's data.
 
-For each vote cell in `cell_deps`, the script subtracts the proposal cell's block number from the vote cell's block number. The result must be less than
+For each vote cell in `cell_deps`, the script subtracts the proposal cell's block number(or `origin_block_number` for finalized proposal cell) from the vote cell's block number. The result must be less than
 `config.vote_window`, which ensures that a vote is only cast within the specified time window.
 
 
 ## Others
 When the number of vote cells is large, it is suggested to slice them into several counting cells. Each counting cell handles an average-sized batch of vote cells. A counting cell's responsibility is to enable counting to work across different transactions and to reduce the workload.
 
-The time to collect vote cells is not strict: "yes" votes may be collected any time before the proposal cell is consumed, and "no" votes for a challenge any time before the finalized proposal cell is consumed. The counting cells are controlled by their creators — the initiator for "yes" votes and the challenger for "no" votes — who can count the votes exactly before the referenced cell is consumed.
+The time to collect vote cells is not strict: "yes" votes may be collected at any time before the proposal cell is consumed, and "no" votes for a challenge at any time before the finalized proposal cell is consumed.
+When votes are "yes", the script must verify that the referenced cell is a proposal cell.
+When votes are "no", the script must verify that the referenced cell is either a proposal cell or a finalized proposal cell. 
+
+The counting cells are controlled by their creators — the initiator for "yes" votes and the challenger for "no" votes — who can count the votes exactly before the referenced cell is consumed.

@@ -1,0 +1,19 @@
+[package]
+name = "counting-type-script"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ckb-std = "1.1"
+ckb-vote-common = { path = "../../crates/ckb-vote-common" }
+ckb-vote-types = { path = "../../crates/ckb-vote-types" }
+
+[features]
+# Logging is on by default: the scripts report what they do to the node log.
+# Build with `--no-default-features` for a minimal, logging free binary.
+default = ["enable_log"]
+library = []
+native-simulator = ["library", "ckb-std/native-simulator"]
+# Emit the `log!`, `warn!` and `error!` messages of this script to the node log
+# (`ckb-std`'s logger).
+enable_log = ["ckb-std/log", "ckb-vote-common/enable_log"]

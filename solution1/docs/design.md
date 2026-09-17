@@ -25,6 +25,7 @@ The following conventions are used in design and spec documents.
 - ckb-blake160-hash: the leading 20 bytes of ckb-hash.
 - A config cell is used for this voting system. Any field can be referred to as `config.<field>`. During processing, the script first loads the predefined config cell and then reads the field in molecule format.
 - The metric flag of all `since` values should be set to block number (00). See [more](https://github.com/nervosnetwork/rfcs/blob/master/rfcs/0017-tx-valid-since/0017-tx-valid-since.md).
+- Basic molecule type pre-defined [here](https://github.com/nervosnetwork/ckb/blob/develop/util/gen-types/schemas/blockchain.mol).
 
 
 ## Processing
@@ -40,7 +41,7 @@ across the whole blockchain. This also means that type scripts are unique. It ha
 
 These rules are actually the same as the `Type ID` rules. Some fields should be defined in the cell data:
 1. config.vote_duration: after this time, the initiator can update the proposal to be finalized.
-2. applied_amount: the amount of assets that can be granted if the voting passes.
+2. requested_amount: the amount of assets that can be granted if the voting passes.
 3. status: should be `proposal`, `finalized`, `passed` to present different status. The initial status is `proposal`.
 
 ### Vote Cell
@@ -73,7 +74,7 @@ When the number of vote cells is small, one counting cell might be enough. It wo
 
 ### Finalized Proposal Cell
 Now all counting cells, together with the proposal cell, can be consumed to produce a new finalized proposal cell.
-This must happen after `config.vote_duration`. The `vote_duration` is a relative `since` based on the proposal cell.
+This must happen after `config.vote_duration` blocks have elapsed since the proposal cell was created. The `vote_duration` is a block count, compared with the relative `since` of the proposal cell.
 This is essentially the operation of updating the proposal cell, and it should follow these rules:
 
 1. All counting cells have type script args that reference the hash of the proposal type script, and the proposal cell is an input cell.
@@ -102,6 +103,10 @@ The proposal, finalized proposal, and passed proposal cells share the same type 
 The vote cell has the vote type script; see details in [vote type script spec](./vote-type-script-spec.md).
 
 The counting cell has the counting type script; see details in [counting type script spec](./counting-type-script-spec.md).
+
+## Config Cell
+The config type script and config cell should be deployed before the other type scripts. The ckb-blake160-hash of the config type script should be set in the `args` of the proposal type script. All related config fields should be read from this config cell.
+
 
 
 ## Diagram
