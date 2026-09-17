@@ -92,10 +92,11 @@ export async function deriveKnownScripts(
   // Dependency groups: a cell whose data is an `OutPointVec` naming the data
   // cell and the code cell of a lock.
   //
-  // The two members are listed as plain `code` dependencies rather than as a
-  // dependency group: the vote script rejects a transaction whose `cell_deps`
-  // contains a group, because it reads the group's `OutPointVec` from
-  // `Source::CellDep`, which the VM resolves to the group's *first member*.
+  // The standard form - one `dep_group` dependency on the group cell - is what
+  // a public chain uses, and the vote script now handles it: it stops scanning
+  // `cell_deps` at the first dependency group (`end_of_dao_deposit`), and the
+  // SDK keeps the voter's DAO deposits in front of that group
+  // (`prioritizeCellDeps`).
   for (const output of outputs) {
     let members: Array<{ txHash: ccc.Hex; index: number }>;
     try {
@@ -106,10 +107,10 @@ export async function deriveKnownScripts(
     } catch {
       continue;
     }
-    const cellDeps = members.map((member) => ({
-      outPoint: { txHash: ccc.hexFrom(member.txHash), index: member.index },
-      depType: "code" as const,
-    }));
+    const group = {
+      outPoint: { txHash: output.txHash, index: output.index },
+      depType: "depGroup" as const,
+    };
     for (const member of members) {
       const target = byOutPoint.get(
         `${ccc.hexFrom(member.txHash).toLowerCase()}:${member.index}`,
@@ -123,7 +124,7 @@ export async function deriveKnownScripts(
           codeHash === SYSTEM_SCRIPT_CODE_HASHES[name] &&
           !overrides[ccc.KnownScript[name]]
         ) {
-          record(name, codeHash, cellDeps);
+          record(name, codeHash, [group]);
         }
       }
     }

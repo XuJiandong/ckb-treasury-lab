@@ -21,19 +21,6 @@ use ckb_vote_common::{error::Error, status};
 // Assemblers
 // --------------------------------------------------------------------------
 
-/// A second reference to the DAO deposit that backs the vote.
-///
-/// `cell_deps` may reach the same cell more than once, so the vote script has
-/// to reject a repeated OutPoint; this is how the tests write the repetition
-/// down.
-#[derive(Debug, Clone, Copy)]
-enum DuplicateDep {
-    /// The very same code dependency, written twice.
-    Code,
-    /// A dependency group that expands to the same deposit.
-    Group,
-}
-
 /// The knobs of a "cast a vote" transaction.
 ///
 /// The default plan is a valid `YES` vote of [`VOTE_AMOUNT`], backed by a DAO
@@ -51,9 +38,14 @@ struct VotePlan {
     proposal_dep: bool,
     /// The DAO deposit backing the vote; `None` means no deposit at all.
     deposit: Option<PlacedCell>,
-    /// Extra references to `deposit`, on top of the single code dependency
-    /// [`vote_tx`] always adds.
-    duplicate_deps: Vec<DuplicateDep>,
+    /// Dependency groups written down *after* the deposit's plain dependency,
+    /// each expanding to the deposit. Every expansion lands past
+    /// `end_of_dao_deposit`, so it must not add to the voted amount.
+    duplicate_groups: usize,
+    /// A dependency group written down *before* the deposit, expanding to a
+    /// cell that is not a DAO deposit. It marks `end_of_dao_deposit`, so the
+    /// deposit that follows is out of the scanned range.
+    leading_group: bool,
     /// How many vote cells the transaction creates.
     vote_outputs: usize,
 }
@@ -73,10 +65,28 @@ fn vote_setup(fixture: &mut Fixture) -> (Proposal, VotePlan) {
         data: None,
         proposal_dep: true,
         deposit: Some(deposit),
-        duplicate_deps: Vec::new(),
+        duplicate_groups: 0,
+        leading_group: false,
         vote_outputs: 1,
     };
     (proposal, plan)
+}
+
+/// A `dep_group` dependency (RFC 0022) that expands to `member`.
+///
+/// The group is a cell whose data is an `OutPointVec`; the VM expands it to its
+/// members before the script runs.
+fn group_dep(fixture: &mut Fixture, member: &OutPoint) -> CellDep {
+    let payload: Bytes = Into::<OutPointVec>::into(vec![member.clone()])
+        .as_slice()
+        .to_vec()
+        .into();
+    let lock = fixture.lock.clone();
+    let group = fixture.create_cell(&lock, CERTIFICATE_CAPACITY, None, payload);
+    CellDep::new_builder()
+        .out_point(group)
+        .dep_type(DepType::DepGroup)
+        .build()
 }
 
 /// Assembles the vote transaction described by `plan`.
@@ -117,40 +127,20 @@ fn vote_tx(fixture: &mut Fixture, proposal: &Proposal, plan: &VotePlan) -> Trans
         builder = builder.cell_dep(dep(&proposal.out_point));
         header_deps.push(proposal.block_hash.clone());
     }
+    if plan.leading_group {
+        // A group that expands to a cell which is not a DAO deposit. It becomes
+        // `end_of_dao_deposit`, so the deposit below is never scanned.
+        let lock = fixture.lock.clone();
+        let filler = fixture.funding_cell(&lock, ONE_CKB);
+        builder = builder.cell_dep(group_dep(fixture, &filler));
+    }
     if let Some(deposit) = &plan.deposit {
         builder = builder.cell_dep(dep(&deposit.out_point));
         if let Some(hash) = &deposit.block_hash {
             header_deps.push(hash.clone());
         }
-        for duplicate in &plan.duplicate_deps {
-            builder = match duplicate {
-                DuplicateDep::Code => builder.cell_dep(dep(&deposit.out_point)),
-                DuplicateDep::Group => {
-                    // A dependency group is a cell whose data is an
-                    // `OutPointVec`; it expands to the deposit in the VM. The
-                    // vote script reads the `OutPointVec` from the cell the VM
-                    // exposes at the group's index, and that slot holds the
-                    // group's first expanded member, so the first member
-                    // carries the `OutPointVec` that names the deposit.
-                    let payload: Bytes = Into::<OutPointVec>::into(vec![deposit.out_point.clone()])
-                        .as_slice()
-                        .to_vec()
-                        .into();
-                    let lock = fixture.lock.clone();
-                    let carrier = fixture.create_cell(&lock, CERTIFICATE_CAPACITY, None, payload);
-                    let group_data: Bytes = Into::<OutPointVec>::into(vec![carrier])
-                        .as_slice()
-                        .to_vec()
-                        .into();
-                    let group = fixture.create_cell(&lock, CERTIFICATE_CAPACITY, None, group_data);
-                    builder.cell_dep(
-                        CellDep::new_builder()
-                            .out_point(group)
-                            .dep_type(DepType::DepGroup)
-                            .build(),
-                    )
-                }
-            };
+        for _ in 0..plan.duplicate_groups {
+            builder = builder.cell_dep(group_dep(fixture, &deposit.out_point));
         }
     }
 
@@ -410,53 +400,72 @@ fn test_vote_amount_mismatch() {
 }
 
 // --------------------------------------------------------------------------
-// Repeating a DAO deposit
+// Repeating a DAO deposit through a dependency group
 // --------------------------------------------------------------------------
+//
+// A first level duplicate (the same packed `CellDep` twice) never reaches a
+// script: consensus rejects it with `DuplicateDepsVerifier` (RFC 0022), so the
+// vote script does not check for it. What the script has to contain is the
+// dependency-group form below, which consensus accepts because the packed
+// `CellDep` differs.
 
-/// Spec: vote, "Processing" - "items in `cell_deps` can be duplicated after a
-/// `dep_groups` is expanded, so the script should check that no duplicated
-/// OutPoint appears in `cell_dep`".
-///
-/// Writing the same deposit down twice lets the vote claim twice its capacity,
-/// so the repeated OutPoint is rejected.
+/// Spec: vote, "Processing" - the deposit scan runs from `0` up to
+/// `end_of_dao_deposit` (exclusive). A dependency group written after the
+/// plain dependency expands to a copy of the deposit that is past the
+/// boundary, so the vote is backed by exactly one deposit and is accepted.
 #[test]
-fn test_vote_duplicate_cell_dep_is_rejected() {
+fn test_vote_group_expansion_is_out_of_range() {
     let mut fixture = Fixture::new();
     let (proposal, mut plan) = vote_setup(&mut fixture);
-    plan.duplicate_deps = vec![DuplicateDep::Code];
-    // The declared amount matches the doubled sum, so the duplicate is the
-    // only rule that can fail.
-    plan.amount = 2 * VOTE_AMOUNT;
+    plan.duplicate_groups = 1;
+    // `VOTE_AMOUNT`, not twice that: the group's copy must not be counted.
     let tx = vote_tx(&mut fixture, &proposal, &plan);
 
-    assert_script_error(&fixture.context, &tx, Error::DuplicatedCellDep);
+    let cycles = fixture
+        .context
+        .verify_tx(&tx, MAX_CYCLES)
+        .expect("a dependency group after the deposit does not inflate the vote");
+    println!("consume cycles: {}", cycles);
 }
 
 /// Spec: vote, "Processing" - the mainnet valid form of the repetition: the
-/// deposit is written once as a code dependency and once through a dependency
-/// group. The two packed dependencies differ, so the script has to compare the
-/// cells the dependencies resolve to.
+/// deposit is written once as a plain dependency and once through a dependency
+/// group. The group member is never counted, so the inflated amount does not
+/// match.
 #[test]
-fn test_vote_duplicate_through_a_dependency_group_is_rejected() {
+fn test_vote_duplicate_through_a_dependency_group_cannot_inflate() {
     let mut fixture = Fixture::new();
     let (proposal, mut plan) = vote_setup(&mut fixture);
-    plan.duplicate_deps = vec![DuplicateDep::Group];
+    plan.duplicate_groups = 1;
     plan.amount = 2 * VOTE_AMOUNT;
     let tx = vote_tx(&mut fixture, &proposal, &plan);
 
-    assert_script_error(&fixture.context, &tx, Error::DuplicatedCellDep);
+    assert_script_error(&fixture.context, &tx, Error::VoteAmountMismatch);
 }
 
 /// Spec: vote, "Processing" - two dependency groups that expand to the same
-/// deposit repeat it as well, even though neither the packed out-points nor the
-/// group cells repeat.
+/// deposit repeat it as well, but both expansions are past
+/// `end_of_dao_deposit`, so only the plain dependency is counted.
 #[test]
-fn test_vote_two_dependency_groups_for_one_deposit_are_rejected() {
+fn test_vote_two_dependency_groups_cannot_inflate() {
     let mut fixture = Fixture::new();
     let (proposal, mut plan) = vote_setup(&mut fixture);
-    plan.duplicate_deps = vec![DuplicateDep::Group, DuplicateDep::Group];
+    plan.duplicate_groups = 2;
     plan.amount = 3 * VOTE_AMOUNT;
     let tx = vote_tx(&mut fixture, &proposal, &plan);
 
-    assert_script_error(&fixture.context, &tx, Error::DuplicatedCellDep);
+    assert_script_error(&fixture.context, &tx, Error::VoteAmountMismatch);
+}
+
+/// Spec: vote, "Processing" - a `dep_group` marks `end_of_dao_deposit`, so a
+/// DAO deposit written down after it is outside the scanned range and the vote
+/// has no deposit to back it.
+#[test]
+fn test_vote_deposit_after_a_dependency_group_is_ignored() {
+    let mut fixture = Fixture::new();
+    let (proposal, mut plan) = vote_setup(&mut fixture);
+    plan.leading_group = true;
+    let tx = vote_tx(&mut fixture, &proposal, &plan);
+
+    assert_script_error(&fixture.context, &tx, Error::DaoDepositMissing);
 }

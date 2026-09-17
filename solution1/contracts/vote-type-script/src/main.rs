@@ -123,14 +123,21 @@ fn run() -> Result<(), Error> {
         return Err(Error::ProposalNotOpen);
     }
 
-    // A transaction may not reference the same cell twice, however the
-    // dependency was written down.
-    cell_dep::ensure_unique_cell_deps()?;
+    // Only the `cell_deps` written down before the first dependency group are
+    // scanned: the VM expands a group in place, so a member it adds could
+    // repeat a cell the transaction already lists on its own. The entries
+    // before the boundary are plain dependencies, and consensus rejects a
+    // transaction that repeats one of them (`DuplicateDepsVerifier`), so the
+    // boundary alone keeps a deposit from being counted twice.
+    let end_of_dao_deposit = cell_dep::end_of_dao_deposit()?;
 
     // Sum up the voter's DAO deposits and compare them with the declared amount.
     let mut total_amount = 0u64;
     let mut deposit_count = 0usize;
     for (index, type_script) in QueryIter::new(load_cell_type, Source::CellDep).enumerate() {
+        if index >= end_of_dao_deposit {
+            break;
+        }
         let Some(type_script) = type_script else {
             continue;
         };

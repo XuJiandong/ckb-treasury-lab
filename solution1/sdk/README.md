@@ -191,8 +191,9 @@ the contract still validates the transaction on chain.
   are collected.
 - **Cell deps.** Every script code cell, the config cell, the referenced
   proposal / vote / counting cells and the DAO deposits are added exactly once:
-  the vote script rejects a transaction whose `cell_deps` reach the same out
-  point twice.
+  CKB rejects a transaction whose `cell_deps` repeat a packed dependency
+  (`DuplicateDepsVerifier`). The DAO deposit dependencies are also moved in
+  front of every other dependency when a vote is cast.
 - **Header deps.** The scripts read the creating block of a cell through
   `load_header`, so the SDK lists exactly the headers the transaction needs.
 - **`since`.** `finalize`, `pass` and `recycle` set a relative, block-number
@@ -208,12 +209,12 @@ the contract still validates the transaction on chain.
   on CKB VM version 0, which the ckb-std 1.x binaries cannot use
   (`MemWriteOnExecutablePage`). `deploy` publishes with `data1` for this
   reason; hand-written configs should use `data1` or `type`.
-- **No dependency groups in `cell_deps`.** The vote script's out-point
-  uniqueness check reads a group's `OutPointVec` from `Source::CellDep`, which
-  the VM resolves to the group's _first member_, so any real dep group makes it
-  fail with `EncodingInvalid` (exit code 3). `devnet-scripts` therefore lists
-  the secp256k1 data cell and code cell as plain `code` deps instead of the
-  standard dep group.
+- **Dependency groups and DAO deposits.** The vote script counts a DAO deposit
+  only when it is written down before the first `dep_group` in `cell_deps`
+  (`end_of_dao_deposit`): the VM expands a group in place, so a group member can
+  never inflate the vote. The SDK puts the deposit dependencies first before
+  signing, which keeps a vote valid even though the signer appends its own lock
+  dependency - the secp256k1 group on a public chain - while completing the fee.
 - **`vote_window`.** A vote cell must be counted within `config.vote_window`
   blocks after the proposal was created; `create-counting` reports the offending
   cell instead of sending a doomed transaction.

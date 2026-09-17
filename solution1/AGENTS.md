@@ -23,3 +23,16 @@ The code for on-chain scripts lives mainly in the `contracts` and `crates` folde
 * When using the ckb-cli tool, refer to ./docs/knowledge/ckb-cli.md.
 * When working with the devnet, refer to ./docs/knowledge/devnet.md.
 * When working with CKB RPC, refer to ./docs/knowledge/rpc.md.
+
+## Deployment
+For testing purposes (devnet or testnet), deploy the binary with hash_type = Type or hash_type = Data2. Don't use Data0 or Data1.
+
+
+## Tests
+When on-chain scripts are updated, consider adding test cases in the `tests` folder. There is no need to add tests in the `sdk` folder.
+
+After any change, always run the following to verify:
+```
+make build
+make test
+```

@@ -273,8 +273,9 @@ export async function addHeaderDeps(
 /**
  * Adds cell deps, skipping out points that are already listed.
  *
- * `cell_deps` may not reach the same cell twice (RFC 0022): the vote script
- * rejects such a transaction, so duplicates are removed here instead.
+ * CKB rejects a transaction that writes the same packed `CellDep` down twice
+ * (`DuplicateDepsVerifier`, RFC 0022), so duplicates are removed here instead
+ * of building a transaction that cannot be accepted.
  */
 export function addUniqueCellDeps(
   tx: ccc.Transaction,
@@ -292,6 +293,33 @@ export function addUniqueCellDeps(
     seen.add(key);
     tx.cellDeps.push(dep);
   }
+}
+
+/**
+ * Moves the dependencies on `outPoints` in front of every other dependency.
+ *
+ * The vote script counts a DAO deposit only when it is written down before the
+ * first dependency group (`end_of_dao_deposit`, see
+ * `docs/vote-type-script-spec.md`): the VM expands a group in place, so the
+ * members it adds would otherwise push a deposit out of the counted range. The
+ * signer appends its own lock dependency - a dep group on a public chain - while
+ * the fee is completed, which is why the reordering happens right before the
+ * transaction is signed.
+ */
+export function prioritizeCellDeps(
+  tx: ccc.Transaction,
+  outPoints: ccc.OutPointLike[],
+): void {
+  const prioritizedKeys = new Set(
+    outPoints.map((outPoint) => formatOutPoint(outPoint).toLowerCase()),
+  );
+  const prioritized: ccc.CellDep[] = [];
+  const rest: ccc.CellDep[] = [];
+  for (const dep of tx.cellDeps) {
+    const key = formatOutPoint(dep.outPoint).toLowerCase();
+    (prioritizedKeys.has(key) ? prioritized : rest).push(dep);
+  }
+  tx.cellDeps.splice(0, tx.cellDeps.length, ...prioritized, ...rest);
 }
 
 /** Waits until the chain tip reaches `blockNumber`. */

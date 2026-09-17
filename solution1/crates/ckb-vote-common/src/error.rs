@@ -91,9 +91,6 @@ pub enum Error {
     VoteAmountMismatch = 66,
     /// More than one vote cell for the same proposal is created in one transaction.
     MultipleVoteCells = 67,
-    /// The same `OutPoint` appears more than once in `cell_deps`, so a DAO
-    /// deposit could be counted (and thus voted) more than once.
-    DuplicatedCellDep = 68,
 
     // -------------------------------------------------- counting type script
     /// The counting cell data is not a well formed `Counting`.

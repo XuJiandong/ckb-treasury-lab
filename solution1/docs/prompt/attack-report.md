@@ -17,7 +17,7 @@ and the canonical config is pinned by the treasury cell, as
 | # | Finding | Attacker goal it serves | Severity | Status | Coverage |
 |---|---------|-------------------------|----------|--------|----------|
 | F1 | The challenge-phase "NO" window was anchored at an input the initiator chooses | initiator: *make the challenge phase unusable* | High | **Fixed** (`Source::GroupInput`) | code analysis |
-| F2 | Voting power could be inflated by referencing the same DAO deposit several times | initiator: *succeed without enough "yes" votes*; challenger: *win without enough "no" votes* | Critical | **Fixed** (`ensure_unique_cell_deps`) | `test_vote_duplicate_cell_dep_is_rejected`, `test_vote_duplicate_through_a_dependency_group_is_rejected`, `test_vote_two_dependency_groups_for_one_deposit_are_rejected` |
+| F2 | Voting power could be inflated by referencing the same DAO deposit several times | initiator: *succeed without enough "yes" votes*; challenger: *win without enough "no" votes* | Critical | **Fixed** (`end_of_dao_deposit`) | `test_vote_group_expansion_is_out_of_range`, `test_vote_duplicate_through_a_dependency_group_cannot_inflate`, `test_vote_two_dependency_groups_cannot_inflate`, `test_vote_deposit_after_a_dependency_group_is_ignored` |
 | F3 | The challenge bond is not paid to the challenger | challenger/hacker: *earn an incentive abnormally* | High | **Fixed** (`challenge_reward_present`) | code analysis |
 | F4 | A proposal picks the config cell that governs it | initiator: *succeed by skipping checks* | Not a bug (intended design) | **By design** (the treasury cell pins the config id) | code analysis |
 | F5 | A vote can be withdrawn while `emergent_halt` is set | hacker: *chaos / bypass the kill switch* | Not A bug (intended design) | **By design** | code analysis |
@@ -166,72 +166,75 @@ defeated: one small DAO deposit could carry arbitrary weight.
 
 ### Fix (applied)
 
-Two complementary checks in `contracts/vote-type-script/src/main.rs`, both
-reporting the new `Error::DuplicatedCellDep = 68`
-(`crates/ckb-vote-common/src/error.rs`).
+`end_of_dao_deposit()` lives in `crates/ckb-vote-common/src/cell_dep.rs` and is
+called by `contracts/vote-type-script/src/main.rs` before the deposits are
+summed. It implements the rule of `docs/vote-type-script-spec.md`: only the
+`cell_deps` written down before the first dependency group are scanned.
 
-1. **`ensure_unique_cell_deps()`** loads the packed transaction and rejects it
-   when two `cell_deps` carry the same `OutPoint`:
+**`end_of_dao_deposit()`** loads the packed transaction, iterates its
+`cell_deps` in molecule and returns the index of the first `dep_group`, or the
+number of `cell_deps` when there is none:
 
-   ```rust
-   let transaction = load_transaction().map_err(|_| Error::SyscallError)?;
-   for cell_dep in transaction.raw().cell_deps().into_iter() {
-       out_points.push(cell_dep.out_point().as_slice().try_into()...);
-   }
-   out_points.sort_unstable();
-   if out_points.windows(2).any(|pair| pair[0] == pair[1]) {
-       return Err(Error::DuplicatedCellDep);
-   }
-   ```
+```rust
+let transaction = load_transaction().map_err(|_| Error::SyscallError)?;
+let mut end = 0usize;
+for cell_dep in transaction.raw().cell_deps().into_iter() {
+    if cell_dep.dep_type().as_slice()[0] == DEP_TYPE_DEP_GROUP {
+        break;
+    }
+    end += 1;
+}
+```
 
-   This is the literal rule of `docs/vote-type-script-spec.md`
-   ("the script should check that no duplicated OutPoint appears in
-   `cell_dep`"). It catches the harness-only form above and any same
-   out-point/different `dep_type` combination.
+The vote script stops its deposit scan there:
 
-2. **`CellFingerprint` over the counted deposits** closes the dependency-group
-   path. ckb-vm exposes no syscall for the out-point of a *resolved* cell dep:
-   `load_input_out_point` returns `IndexOutOfBound` for `Source::CellDep`
-   (`ckb-script/src/syscalls/load_input.rs`), and `CellField` has no `OutPoint`
-   variant. A group's expansion therefore cannot be mapped back to out-points
-   from inside the script. What the script *can* observe is the content of each
-   resolved dependency, so two counted DAO deposits that agree on their lock
-   hash, type hash, capacity and data hash are rejected:
+```rust
+for (index, type_script) in QueryIter::new(load_cell_type, Source::CellDep).enumerate() {
+    if index >= end_of_dao_deposit {
+        break;
+    }
+    // ... sum the deposit when the lock and the DAO type script match
+}
+```
 
-   ```rust
-   if CellFingerprint::any_duplicate(&mut deposits) {
-       return Err(Error::DuplicatedCellDep);
-   }
-   ```
+This closes the dependency-group path. ckb-vm exposes no syscall for the
+out-point of a *resolved* cell dep, so a group member cannot be told apart from
+an entry written on its own; but a group is expanded *in place*, so every member
+it adds lands at or after the boundary and is never counted. The same deposit
+listed once as a plain dependency and once through a group - the mainnet-valid
+form, because the packed `CellDep` also carries `dep_type` and
+`DuplicateDepsVerifier` accepts it - is therefore counted exactly once.
 
-   A dependency group handing the same deposit to the script twice produces
-   exactly such an indistinguishable pair, while a duplicate packed out-point
-   is already caught by check 1.
+**No duplicate check is needed.** The exploit's first form - the very same
+packed `CellDep` (same out-point *and* `dep_type`) written twice - never reaches
+a script: `ckb_verification::DuplicateDepsVerifier`
+(`ckb-verification/src/transaction_verifier.rs`) collects the raw `cell_deps`
+into a set and fails the transaction on the first repeat, so the entries before
+`end_of_dao_deposit` are already unique. The boundary covers the remaining
+shape, where the two dependencies pack differently.
 
-**Trade-off and limits.** The fingerprint is conservative: a voter who
-legitimately owns two DAO deposits with the same lock and the same capacity
-(DAO deposit data is empty, so those two fields are the whole fingerprint)
-cannot use both in one vote. Merging or splitting one of the deposits - an
-operation the design already contemplates - restores the vote. The check only
-runs on the deposits a vote counts, so it never affects code cells or the
-config/proposal references.
+**Trade-off and limits.** The boundary is where a dependency group is written
+down, not where a deposit is: a voter who lists a DAO deposit *after* a
+`dep_group` gets a vote with no counted deposit (`DaoDepositMissing`), which the
+SDK avoids by putting the deposit dependencies first (`prioritizeCellDeps`).
 
 **Binary size.** The vote type script grew from 88,976 to 124,920 bytes
 (+36 KB, mostly `load_transaction` and molecule parsing). It is still far below
 the 400 KB warning threshold of `AGENTS.md`.
 
-**Tests.** Three regressions in `tests/src/vote_tests.rs`, sharing a
-`DuplicateDep` knob on the vote plan:
+**Tests.** Four regressions in `tests/src/vote_tests.rs`, sharing a
+`duplicate_groups` count (and a `leading_group` flag) on the vote plan:
 
-* `test_vote_duplicate_cell_dep_is_rejected` - the same code dependency twice.
-* `test_vote_duplicate_through_a_dependency_group_is_rejected` - once as a code
-  dependency, once through a group (the mainnet valid form).
-* `test_vote_two_dependency_groups_for_one_deposit_are_rejected` - two groups
-  expanding to the same deposit; neither the packed out-points nor the group
-  cells repeat.
-
-Each declares an amount that matches the inflated sum, so the duplicate rule is
-the only check that can fail.
+* `test_vote_group_expansion_is_out_of_range` - the deposit is listed once as a
+  code dependency and once through a group; the declared amount is a single
+  `VOTE_AMOUNT`, so the group's copy must not be counted.
+* `test_vote_duplicate_through_a_dependency_group_cannot_inflate` - the mainnet
+  valid form above with an inflated amount, which no longer matches.
+* `test_vote_two_dependency_groups_cannot_inflate` - two groups expanding to the
+  same deposit; neither the packed out-points nor the group cells repeat.
+* `test_vote_deposit_after_a_dependency_group_is_ignored` - a group written
+  before the deposit marks `end_of_dao_deposit`, so the deposit is out of the
+  scanned range and the vote fails with `DaoDepositMissing`.
 
 ---
 
@@ -445,11 +448,13 @@ and are not separately reproduced.
    (the rest is free to go elsewhere). The spec sentence only constrains the
    lock script; a stricter rule would require the matching output(s) to hold at
    least the consumed capacity.
-8. **`CellFingerprint` relies on the cell content, not on identity.** As
+8. **`end_of_dao_deposit` is a positional rule, not an identity check.** As
    explained under F2, ckb-vm cannot report the out-point of a resolved cell
-   dep, so the vote script reconstructs identity from content. The trade-off is
-   documented there; a future VM syscall (`CellField::OutPoint` for cell deps)
-   would let the script use the exact rule instead.
+   dep, so the vote script does not try to identify group members: it stops
+   scanning at the first `dep_group`, and a deposit written after that boundary
+   is ignored (`DaoDepositMissing`). A future VM syscall
+   (`CellField::OutPoint` for cell deps) would let the script compare exact
+   out-points instead and drop the ordering requirement.
 
 ## What was probed and found sound
 
@@ -500,8 +505,9 @@ Two consequences for this report:
 
 * the plain duplicate `cell_dep` case is a harness-level demonstration because
   the node's `DuplicateDepsVerifier` would already reject it; the
-  dependency-group case was the mainnet valid form of F2 and is now refused by
-  the vote script itself;
+  dependency-group case was the mainnet valid form of F2 and is now neutralised
+  by `end_of_dao_deposit`, which stops the vote script's scan before the group
+  expansion;
 * `since` values in the tests are validated by the scripts, not by the node's
   maturity verifier, which is sufficient here because the scripts read the
   `since` field directly and never rely on the node having enforced it.
@@ -516,7 +522,8 @@ make build && make test
 The F2 regressions are in `tests/src/vote_tests.rs`:
 
 ```text
-test vote_tests::test_vote_duplicate_cell_dep_is_rejected ... ok
-test vote_tests::test_vote_duplicate_through_a_dependency_group_is_rejected ... ok
-test vote_tests::test_vote_two_dependency_groups_for_one_deposit_are_rejected ... ok
+test vote_tests::test_vote_group_expansion_is_out_of_range ... ok
+test vote_tests::test_vote_duplicate_through_a_dependency_group_cannot_inflate ... ok
+test vote_tests::test_vote_two_dependency_groups_cannot_inflate ... ok
+test vote_tests::test_vote_deposit_after_a_dependency_group_is_ignored ... ok
 ```

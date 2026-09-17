@@ -15,6 +15,7 @@ import {
   addUniqueCellDeps,
   cellDepFromDeployment,
   formatOutPoint,
+  prioritizeCellDeps,
   requireCellHeader,
   requireLiveCell,
   resolveLock,
@@ -58,6 +59,11 @@ export interface CastVoteResult {
  * through `cell_deps` together with the proposal cell and the block that
  * created each of them: the contract compares every deposit's age with the
  * proposal's.
+ *
+ * The deposits are moved in front of every other dependency before the
+ * transaction is signed: the contract stops scanning `cell_deps` at the first
+ * dependency group (`end_of_dao_deposit`), and the signer adds its lock's
+ * dependency - a dep group on a public chain - while it completes the fee.
  */
 export async function castVote(
   signer: ccc.Signer,
@@ -181,6 +187,10 @@ export async function castVote(
   }
 
   await tx.completeFeeBy(signer, feeRateOf(config));
+  // Completing the fee may have appended the signer's lock dependency, which
+  // is a dependency group on a public chain. The contract only counts the DAO
+  // deposits written before the first group, so put them back in front.
+  prioritizeCellDeps(tx, deposits);
   const txHash = await signer.sendTransaction(tx);
 
   return {
