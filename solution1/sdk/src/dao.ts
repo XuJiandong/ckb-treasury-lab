@@ -1,16 +1,5 @@
 /**
- * Nervos DAO deposits.
- *
- * A vote is backed by the voter's DAO deposits (see
- * `docs/vote-type-script-spec.md`), and the rest of the SDK only consumes
- * them: it never created one. {@link depositDao} fills that gap so that a full
- * end-to-end run can fund a vote without `ckb-cli`.
- *
- * Depositing is deliberately simple on chain: an output cell whose type script
- * is the Nervos DAO type script and whose data is 8 zero bytes is a deposit
- * (RFC 0024). The transaction only has to carry the DAO code cell, resolved
- * from the genesis block (`tx[0] output[2]`), so that the node can run the DAO
- * type script.
+ * Nervos DAO deposits. For testing purpose.
  */
 
 import { ccc } from "@ckb-ccc/shell";

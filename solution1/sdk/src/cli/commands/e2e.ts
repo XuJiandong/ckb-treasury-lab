@@ -7,12 +7,6 @@
  *
  *   deploy -> create-config -> dao-deposit -> create-proposal -> vote ->
  *   create-counting -> finalize-proposal -> pass-proposal
- *
- * A process that does not come up within {@link START_TIMEOUT_MS} (< 10 s) is
- * restarted; after {@link START_ATTEMPTS} attempts the run reports an error and
- * quits. Every step waits for the transaction it sent to be committed by
- * querying the node, and the two `ckb` processes are shut down (gracefully) on
- * the way out, whether the run succeeded, failed, or was interrupted.
  */
 
 import { execFileSync, spawn } from "node:child_process";

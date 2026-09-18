@@ -1,17 +1,6 @@
 /**
- * Publishing the voting contracts.
- *
- * Each binary becomes a plain code cell locked by the deployer, referenced
- * with `hash_type: data2`: the code hash is then the ckb-hash of the binary,
- * which the SDK computes itself, so a deployment needs neither a Type ID
- * script nor any off-chain bookkeeping.
- *
- * `data2` rather than `data` is deliberate: a script whose hash type is `data`
- * runs on VM version 0, and the ckb-std 1.x binaries need a newer VM (their
- * allocator assumes the version 1 memory layout). `data2` identifies the code
- * by the same ckb-hash of the code cell data while selecting VM version 2, and
- * it also leaves room for upgrading the code cell later. A deployment that
- * wants a Type ID lineage can still write a `hash_type: type` config by hand.
+ * Publishing the voting contracts. Used for e2e tests and other testing only.
+ * Use ckb-cli to deploy these binaries for testnet or production use.
  */
 
 import { readFileSync } from "node:fs";
