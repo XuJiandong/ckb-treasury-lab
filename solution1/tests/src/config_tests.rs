@@ -175,11 +175,11 @@ fn test_config_emergent_halt_out_of_range() {
 }
 
 /// Spec: config, "Cell Data" - every `hash_type` field has to be a valid
-/// `ScriptHashType`; the largest one is `data1` (2).
+/// `ScriptHashType` (0, 1, 2 or `data2` = 4); 3 is not one of them.
 #[test]
 fn test_config_hash_type_out_of_range() {
     let mut fixture = Fixture::new();
-    // 3 is above `constants::MAX_SCRIPT_HASH_TYPE`.
+    // 3 is not a valid `ScriptHashType`, so `validate` rejects it.
     fixture.vote_hash_type = 3;
     let data = fixture.config_data();
     let tx = mint_tx(&mut fixture, CONFIG_CAPACITY, data, |input| {

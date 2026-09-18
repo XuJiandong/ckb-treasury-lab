@@ -153,7 +153,7 @@ function parseScript(value: unknown, label: string): ScriptDeployment {
   const hashType = requireString(script.hashType, `${label}.hashType`);
   if (!(hashType in HASH_TYPE_BYTES)) {
     throw new Error(
-      `${label}.hashType must be data, type or data1 (got ${hashType})`,
+      `${label}.hashType must be data, type, data1 or data2 (got ${hashType})`,
     );
   }
   return {
@@ -184,7 +184,7 @@ export function parseConfig(
     if (HASH_TYPE_BYTES[parsed[key].hashType] > MAX_HASH_TYPE_BYTE) {
       throw new Error(
         `${source}.scripts.${key}.hashType is larger than the largest hash type ` +
-          `the contracts accept (data1)`,
+          `the contracts accept (data2)`,
       );
     }
   }

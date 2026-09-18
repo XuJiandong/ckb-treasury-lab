@@ -81,7 +81,7 @@ function buildConfigData(
   for (const key of ["vote", "counting", "alwaysSuccess"] as const) {
     if (HASH_TYPE_BYTES[config.scripts[key].hashType] > MAX_HASH_TYPE_BYTE) {
       throw new Error(
-        `scripts.${key} uses a hash type larger than data1, which the config ` +
+        `scripts.${key} uses a hash type larger than data2, which the config ` +
           `cell cannot record`,
       );
     }
@@ -261,9 +261,9 @@ export interface DeploymentCheck {
  * Verifies that every deployed script can be found on chain and that its
  * `code_hash` matches the code cell the config points at.
  *
- * For a `data` / `data1` hash type the code hash is the ckb-hash of the code
- * cell data; for a `type` hash type it is the ckb-hash of the code cell's own
- * type script.
+ * For a `data` / `data1` / `data2` hash type the code hash is the ckb-hash of
+ * the code cell data; for a `type` hash type it is the ckb-hash of the code
+ * cell's own type script.
  */
 export async function checkDeployment(
   client: ccc.Client,

@@ -104,9 +104,9 @@ cell all live in one JSON file (`deployment.example.json` shows the shape).
   "rpcUrl": "http://127.0.0.1:8114",
   "feeRate": 1500,
   "scripts": {
-    "config":        { "codeHash": "0x..", "hashType": "data1", "args": "0x<Type ID>",
+    "config":        { "codeHash": "0x..", "hashType": "data2", "args": "0x<Type ID>",
                        "cellDep": { "txHash": "0x..", "index": 0, "depType": "code" } },
-    "proposal":      { "codeHash": "0x..", "hashType": "data1", "cellDep": { ... } },
+    "proposal":      { "codeHash": "0x..", "hashType": "data2", "cellDep": { ... } },
     "vote":          { ... },
     "counting":      { ... },
     "alwaysSuccess": { ... }
@@ -203,12 +203,11 @@ the contract still validates the transaction on chain.
 
 ## Notes and gotchas
 
-- **Bun only.** The package is TypeScript-first and uses Bun's native TS
-  execution; there is no `tsc` build step (`bunx tsc --noEmit` type checks).
-- **`hash_type` must not be `data`.** A script whose hash type is `data` runs
-  on CKB VM version 0, which the ckb-std 1.x binaries cannot use
-  (`MemWriteOnExecutablePage`). `deploy` publishes with `data1` for this
-  reason; hand-written configs should use `data1` or `type`.
+- **`hash_type` must not be `data`.** A script whose hash type is `data` runs on
+  CKB VM version 0, which the ckb-std 1.x binaries cannot use. `deploy`
+  publishes the binaries with `data2` for this reason (same code-cell-data hash
+  as `data`, but CKB VM version 2); hand-written configs should use `data2` or
+  `type`.
 - **Dependency groups and DAO deposits.** The vote script counts a DAO deposit
   only when it is written down before the first `dep_group` in `cell_deps`
   (`end_of_dao_deposit`): the VM expands a group in place, so a group member can
