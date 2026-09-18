@@ -322,6 +322,39 @@ export function prioritizeCellDeps(
   tx.cellDeps.splice(0, tx.cellDeps.length, ...prioritized, ...rest);
 }
 
+/**
+ * Waits until a sent transaction is committed to a block.
+ *
+ * The transaction itself is polled instead of sleeping for a fixed time: a
+ * devnet can mine faster or slower than expected, and a rejected transaction
+ * must fail the caller immediately rather than after a timeout.
+ */
+export async function waitForTransaction(
+  client: ccc.Client,
+  txHash: ccc.HexLike,
+  { attempts = 120, intervalMs = 1000 } = {},
+): Promise<ccc.ClientTransactionResponse> {
+  for (let attempt = 0; ; attempt++) {
+    const response = await client.getTransaction(txHash);
+    if (response?.status === "committed") {
+      return response;
+    }
+    if (response?.status === "rejected") {
+      throw new Error(
+        `transaction ${ccc.hexFrom(txHash)} was rejected` +
+          (response.reason ? `: ${response.reason}` : ""),
+      );
+    }
+    if (attempt >= attempts) {
+      throw new Error(
+        `transaction ${ccc.hexFrom(txHash)} was not committed after ` +
+          `${attempts} polls`,
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+}
+
 /** Waits until the chain tip reaches `blockNumber`. */
 export async function waitForBlockNumber(
   client: ccc.Client,

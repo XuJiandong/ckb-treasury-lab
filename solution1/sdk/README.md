@@ -21,6 +21,7 @@ src/
   proposal.ts     create, finalize, pass, challenge, recycle, veto, grant
   vote.ts         cast and withdraw a vote
   counting.ts     create and consume a counting cell
+  dao.ts          create the Nervos DAO deposits a vote is backed by
   deploy.ts       publish the contract binaries
   devnet.ts       derive a devnet's known-script cell deps from block 0
   cli/            the ckb-vote CLI
@@ -91,6 +92,43 @@ Every command accepts `--config <path>`, `--rpc-url <url>` and `--json`;
 
 After `bun link` (or `bun install -g .`) the same commands are available as
 `ckb-vote`, which runs `bin/ckb-vote.ts` with Bun.
+
+## End-to-end run
+
+`e2e` performs the whole quick start in one command. It starts the devnet
+itself - `ckb run` and `ckb miner`, with `devnet/` as their working directory -
+and needs no parameter:
+
+```sh
+cd sdk
+bun run src/cli/index.ts e2e
+```
+
+It derives the devnet scripts from block 0, deploys the five contracts with
+`hash_type: data2`, mints the config cell with `--vote-duration 5
+--vote-window 5 --challenge-time 1`, creates a `dao-deposit`, and then runs
+`create-proposal -> vote -> create-counting -> finalize-proposal ->
+pass-proposal`. `receive-grant` is intentionally left out. The deployment
+config it writes (and uses) is `./devnet.config`; `--config` / `--rpc-url`
+override the defaults.
+
+A process that does not come up within nine seconds is restarted, and the run
+reports an error and quits with exit code 1 if it still cannot start after two
+retries (the `ckb` binary must exist under `devnet/`). It shuts both processes
+down when it exits - normally, on failure or on `Ctrl-C` - unless
+`--keep-running` is passed.
+
+A vote needs a DAO deposit older than the proposal, so `dao-deposit` is
+available on its own too:
+
+```sh
+# Bootstrap config only needs rpcUrl and knownScripts.
+bun run src/cli/index.ts dao-deposit --amount 1000 --private-key <hex>
+```
+
+The deposit output is locked by the signer's lock and carries the Nervos DAO
+type script with 8 zero bytes of data; the transaction lists the DAO code cell
+of the genesis block (`tx[0] output[2]`) in `cell_deps`.
 
 ## Deployment config
 
@@ -203,6 +241,12 @@ the contract still validates the transaction on chain.
 
 ## Notes and gotchas
 
+- **The client never falls back to a public network.** CCC's
+  `ClientPublicTestnet` defaults its fallbacks to `testnet.ckb.dev`, so a devnet
+  client built from a local RPC URL would silently answer from - and send
+  transactions to - the public testnet whenever the local node was briefly
+  unavailable. `buildClient` passes `fallbacks: []`, which pins every query to
+  the configured `rpcUrl`.
 - **`hash_type` must not be `data`.** A script whose hash type is `data` runs on
   CKB VM version 0, which the ckb-std 1.x binaries cannot use. `deploy`
   publishes the binaries with `data2` for this reason (same code-cell-data hash

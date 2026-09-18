@@ -14,6 +14,8 @@
  * wants a Type ID lineage can still write a `hash_type: type` config by hand.
  */
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { ccc } from "@ckb-ccc/shell";
 import {
   SCRIPT_KEYS,
@@ -24,6 +26,26 @@ import { ckbHash, resolveLock, signerLock } from "./utils.js";
 
 /** The compiled binaries of the five scripts. */
 export type ContractBinaries = Record<ScriptKey, ccc.BytesLike>;
+
+/** File name of each compiled contract in `build/release`. */
+export const CONTRACT_BINARY_FILES: Record<ScriptKey, string> = {
+  config: "config-type-script",
+  proposal: "proposal-type-script",
+  vote: "vote-type-script",
+  counting: "counting-type-script",
+  alwaysSuccess: "always-success",
+};
+
+/** Reads the five compiled binaries from a `build/release`-style directory. */
+export function readContractBinaries(directory: string): ContractBinaries {
+  const binaries = {} as ContractBinaries;
+  for (const key of SCRIPT_KEYS) {
+    binaries[key] = new Uint8Array(
+      readFileSync(join(directory, CONTRACT_BINARY_FILES[key])),
+    );
+  }
+  return binaries;
+}
 
 /** The result of {@link deployScripts}. */
 export interface DeployScriptsResult {

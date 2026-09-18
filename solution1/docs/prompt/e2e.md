@@ -1,9 +1,7 @@
 
-The e2e script should be written in TypeScript as a subcommand in the SDK. It first checks that two `ckb` processes are running.
-If they are not, it invokes them as subprocesses. Follow the "Quick start on a local devnet" section in `sdk/README.md` to implement the script.
+The e2e script should be written in TypeScript as a subcommand in the SDK. It first checks that two `ckb`(`ckb run` and `ckb miner`) processes are running. If they are not, Report errors. Follow the "Quick start on a local devnet" section in `sdk/README.md` to implement the script.
 
 Rules:
-* The `ckb` program is located under `solution1/devnet`. Report an error if it is missing.
 * The private key that holds assets is `d00c06bfd800d27397002dca6fb0993d5ba6399b4238b2f29ee9deb97593d2bc`.
 * Use `code_hash = Data2` to refer to all deployed binaries. Update all code if necessary.
 * Use the parameters `--vote-duration 5 --vote-window 5 --challenge-time 1`.

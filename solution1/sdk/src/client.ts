@@ -16,20 +16,29 @@ export interface ClientConfigLike {
  * A devnet has its own genesis outpoints, so the config may override the
  * built-in known scripts; the overrides are merged on top of the defaults so
  * that every other known script stays available.
+ *
+ * The public clients fall back to their public RPC endpoints when the
+ * configured URL does not answer - `ClientPublicTestnet` defaults to
+ * `testnet.ckb.dev`. On a devnet that silently moves every query *and every
+ * transaction* to another chain, so the fallbacks are disabled here: the client
+ * only ever talks to `config.rpcUrl`.
  */
 export function buildClient(config: ClientConfigLike): ccc.ClientPublicTestnet {
   const overrides = config.knownScripts;
-  if (!overrides || Object.keys(overrides).length === 0) {
-    return new ccc.ClientPublicTestnet({ url: config.rpcUrl });
-  }
 
   // `Client.scripts` is private; the defaults are read from a throwaway
   // instance and merged with the overrides.
   const base = new ccc.ClientPublicTestnet();
   const defaults = (base as unknown as { scripts: object }).scripts;
+  const scripts =
+    overrides && Object.keys(overrides).length > 0
+      ? { ...defaults, ...overrides }
+      : defaults;
+
   return new ccc.ClientPublicTestnet({
     url: config.rpcUrl,
-    scripts: { ...defaults, ...overrides },
+    fallbacks: [],
+    scripts,
   });
 }
 

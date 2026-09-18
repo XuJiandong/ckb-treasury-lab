@@ -82,6 +82,7 @@ export interface DeploymentConfig {
 export function defaultConfigPaths(): string[] {
   return [
     process.env.CKB_VOTE_CONFIG,
+    resolve("devnet.config"),
     resolve("devnet.json"),
     resolve("deployment/devnet.json"),
     resolve("../deployment/devnet.json"),
