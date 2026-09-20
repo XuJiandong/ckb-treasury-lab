@@ -453,13 +453,16 @@ async function runE2e(options: E2eOptions): Promise<void> {
       `${vote.voteAmount / CKB} CKB`,
   );
 
-  steps.start('create a "YES" counting cell for the whole hash range');
+  steps.start(
+    'create a "YES" counting cell for the whole hash range (waits for vote_duration)',
+  );
   const counting = await createCountingCell(signer, active, {
     proposalOutPoint: proposal.proposalCell,
     direction: "yes",
     startHash: 0,
     endHash: 0xffff,
     voteOutPoints: [vote.voteCell],
+    wait: true,
   });
   await waitForTransaction(client, counting.txHash);
   steps.info(
@@ -467,7 +470,7 @@ async function runE2e(options: E2eOptions): Promise<void> {
       `${counting.voteAmount / CKB} CKB`,
   );
 
-  steps.start("finalize the proposal (waits for vote_duration)");
+  steps.start("finalize the proposal");
   const finalizeTx = await finalizeProposal(signer, active, {
     proposalOutPoint: proposal.proposalCell,
     countingOutPoints: [counting.countingCell],

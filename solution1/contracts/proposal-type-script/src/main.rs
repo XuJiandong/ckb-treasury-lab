@@ -208,7 +208,7 @@ fn finalize(
     }
 
     // Sum the "YES" certificates and record the result in `total_yes`.
-    let tally = collect_counting_cells(script, config, status::DIRECTION_YES)?;
+    let tally = collect_counting_cells(script, config, status::DIRECTION_YES, origin)?;
     if tally.count == 0 {
         return Err(Error::CountingCellMissing);
     }
@@ -256,7 +256,8 @@ fn settle(script: &Script, config_id: &[u8; CONFIG_ID_LEN]) -> Result<(), Error>
             }
             // 2. A challenger wins by collecting at least as much "NO" weight
             //    as the certified "YES" votes; the bond is the incentive.
-            let tally = collect_counting_cells(script, &config, status::DIRECTION_NO)?;
+            let origin = u64_of(proposal.origin_block_number());
+            let tally = collect_counting_cells(script, &config, status::DIRECTION_NO, origin)?;
             if tally.count > 0 && tally.total_amount >= u64_of(proposal.total_yes()) {
                 // The challenger is the owner of the "NO" certificates, so the
                 // bond has to reach a lock script one of them uses; otherwise
@@ -356,7 +357,15 @@ struct Tally {
 /// `[h3, h4]` overlap when some value satisfies `h1 <= v <= h2` and
 /// `h3 <= v <= h4`. That is what makes the sum meaningful, since a voter whose
 /// lock hash prefix belongs to both ranges could otherwise be counted twice.
-fn collect_counting_cells(script: &Script, config: &Config, direction: u8) -> Result<Tally, Error> {
+///
+/// `origin` is the block that created the proposal cell; every counting cell
+/// must be created after `origin + config.vote_duration`.
+fn collect_counting_cells(
+    script: &Script,
+    config: &Config,
+    direction: u8,
+    origin: u64,
+) -> Result<Tally, Error> {
     // The counting cells point back at this very proposal cell.
     let proposal_id = hash::script_id(script);
     let mut ranges: Vec<range::HashRange> = Vec::new();
@@ -378,6 +387,16 @@ fn collect_counting_cells(script: &Script, config: &Config, direction: u8) -> Re
             let counting = Counting::from_slice(&data).map_err(|_| Error::CountingCellInvalid)?;
             if counting.direction().as_slice()[0] != direction {
                 return Err(Error::CountingCellInvalid);
+            }
+            // Collection only starts after the voting duration has elapsed.
+            let block_number = proposal::block_number_of(index, source)?;
+            let earliest = origin
+                .checked_add(config.vote_duration)
+                .ok_or(Error::AmountOverflow)?;
+            if block_number <= earliest {
+                #[cfg(feature = "enable_log")]
+                warn!("a counting cell was created before the voting duration elapsed");
+                return Err(Error::CountingCellTooEarly);
             }
             // Every hash range has to satisfy `start_hash <= end_hash`;
             // `HashRange::new` enforces it.

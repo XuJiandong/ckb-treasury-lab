@@ -56,9 +56,10 @@ In this phase, a proposal cell, together with some counting cells, is consumed t
 1. the `since` in the input cell is larger than `config.vote_duration`.
 2. the `since` is a relative `since` with the block number metric, which makes it a block count comparable with `config.vote_duration`
 
+
 The `args` should be kept the same, as the Type ID rule requires. The output lock script of the finalized proposal cell should be the `always success` lock script, so that it can be challenged by others.
 
-The script then goes through all counting cells, which are identified by `config.counting_cell_code_hash`/`config.counting_cell_hash_type`. It checks that the `args` is the ckb-blake160-hash of the proposal cell. Finally, it sums all "YES" values in the counting cells' cell data. If the sum is less than the `config.yes_threshold`, it fails. The `total_yes` field should be the sum.
+The script then goes through all counting cells, which are identified by `config.counting_cell_code_hash`/`config.counting_cell_hash_type`. It checks that the `args` is the ckb-blake160-hash of the proposal cell. Then it loads the block numbers of all counting cells and verifies that they are greater than the proposal cell's block number plus `config.vote_duration`. Finally, it sums all "YES" values in the counting cells' cell data. If the sum is less than the `config.yes_threshold`, it fails. The `total_yes` field should be the sum.
 
 The input capacity must equal the output capacity of the proposal cells. The bond serves as the challenger's incentive and must not be drained. 
 

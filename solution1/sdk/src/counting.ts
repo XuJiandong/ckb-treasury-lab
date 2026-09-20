@@ -31,6 +31,7 @@ import {
   scriptHash,
   scriptId,
   signerLock,
+  waitForBlockNumber,
 } from "./utils.js";
 
 /** Parameters of a counting cell. */
@@ -53,6 +54,8 @@ export interface CreateCountingCellParams {
   voteOutPoints?: ccc.OutPointLike[];
   /** Lock of the counting cell; defaults to the signer's lock. */
   lock?: string | ccc.ScriptLike;
+  /** Wait until `config.vote_duration` elapsed before sending. */
+  wait?: boolean;
 }
 
 /** The result of {@link createCountingCell}. */
@@ -119,6 +122,14 @@ export async function createCountingCell(
   const windowOrigin = isFinalized
     ? proposal.data.originBlockNumber
     : proposalHeader.number;
+
+  // Collection only starts after the voting duration has elapsed.
+  if (params.wait) {
+    await waitForBlockNumber(
+      client,
+      windowOrigin + info.data.voteDuration + 1n,
+    );
+  }
 
   // Pick the vote cells to aggregate.
   let candidates: VoteCellInfo[];

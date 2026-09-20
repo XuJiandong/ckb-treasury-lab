@@ -659,7 +659,7 @@ impl Fixture {
             vote_amount: VOTE_AMOUNT,
             capacity: CERTIFICATE_CAPACITY,
             lock: self.lock.clone(),
-            block: None,
+            block: Some(proposal.block_number + VOTE_DURATION + 1),
         }
     }
 

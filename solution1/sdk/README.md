@@ -72,7 +72,7 @@ bun run src/cli/index.ts vote \
 COUNTING=$(bun run src/cli/index.ts create-counting \
   --config ../deployment/devnet.json --private-key-file pk \
   --proposal $PROPOSAL:0 --direction yes \
-  --start-hash 0 --end-hash 65535 --json | jq -r .countingCell.txHash)
+  --start-hash 0 --end-hash 65535 --wait --json | jq -r .countingCell.txHash)
 
 # 6. Finalize after vote_duration, pass after challenge_time, claim the grant.
 bun run src/cli/index.ts finalize-proposal \
@@ -204,6 +204,7 @@ const counting = await createCountingCell(signer, config, {
   direction: "yes",
   startHash: 0,
   endHash: 0xffff,
+  wait: true, // collect only after config.vote_duration elapsed
 });
 
 await finalizeProposal(signer, config, {
