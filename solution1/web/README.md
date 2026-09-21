@@ -5,6 +5,10 @@ Static, dependency-free UI mockup of the voting system described in
 transaction anywhere in this folder** — every cell, vote and config value comes
 from `assets/js/mock-data.js`, and mutations are kept in `localStorage`.
 
+The theme is light: a warm paper canvas with a yellow accent for anything the
+user acts on, plus green / red / violet only where the protocol itself is
+yes / no / finalized.
+
 ## Pages
 
 | File | Entry point in the design |
@@ -55,7 +59,7 @@ python3 -m http.server 4321 --directory web
 ```
 web/
 ├── index.html · voter.html · initiator.html
-├── assets/css/tokens.css     # design tokens, base, components
+├── assets/css/tokens.css     # design tokens (light + yellow), base, components
 ├── assets/css/pages.css      # header, wallet menu, cards, page composition
 ├── assets/js/
 │   ├── main.js               # entry point: shell + wallet + page dispatch
