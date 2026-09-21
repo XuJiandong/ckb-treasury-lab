@@ -36,3 +36,6 @@ After any change, always run the following to verify:
 make build
 make test
 ```
+
+## Small Changes
+Unless requested, don't add extra comments when adding small features or fixing bugs. 
