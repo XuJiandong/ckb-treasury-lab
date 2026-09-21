@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CKB Voting — For Proposal Initiator</title>
+    <meta
+      name="description"
+      content="Mockup of the initiator console: create, pre-check, count, finalize and pass a proposal cell."
+    />
+    <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/css/tokens.css" />
+    <link rel="stylesheet" href="assets/css/pages.css" />
+  </head>
+  <body data-page="initiator">
+    <div data-shell="header"></div>
+
+    <main class="page">
+      <section class="section" style="margin-top: 12px">
+        <div class="section__head section__head--stack">
+          <div>
+            <span class="eyebrow">
+              <span class="badge__dot" style="color: var(--accent-2)"></span>
+              For Proposal Initiator
+            </span>
+            <h1 style="font-size: 30px; margin-top: 12px">Initiator console</h1>
+            <p class="muted" style="margin-top: 10px; max-width: 74ch">
+              Create a proposal cell, collect its votes into counting cells, then finalize and
+              pass it. Every operation below consumes cells locked by your address.
+            </p>
+          </div>
+          <div class="section__side">
+            <span class="badge" id="initiator-lock-badge">lock —</span>
+            <span class="badge" id="initiator-block-badge">block —</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" style="margin-top: 22px">
+        <div class="stats" id="initiator-stats"></div>
+      </section>
+
+      <section class="section" id="create">
+        <div class="section__head">
+          <h2 class="section__title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            Create a proposal
+          </h2>
+          <span class="section__hint">
+            Writes <code>ProposalCellData</code> into a new proposal cell with <code>status = 0</code>
+          </span>
+        </div>
+
+        <form class="creator" id="create-form" novalidate>
+          <div>
+            <label class="field">
+              <span class="label">description</span>
+              <textarea
+                class="textarea"
+                id="create-description"
+                placeholder="What should the treasury fund, and what does it buy?"
+                maxlength="512"
+              ></textarea>
+              <span class="field__hint"><span id="description-count">0</span> / 512 bytes of UTF-8 text</span>
+              <span class="field__error hidden" id="description-error"></span>
+            </label>
+
+            <div class="grid grid--2" style="margin-top: 16px">
+              <label class="field" style="margin-top: 0">
+                <span class="label">requested_amount</span>
+                <span class="input-affix">
+                  <input class="input" id="create-amount" inputmode="decimal" placeholder="180,000" />
+                  <span class="input-affix__suffix">CKB</span>
+                </span>
+                <span class="field__hint" id="amount-hint">Minimum grant hint: 1,000 CKB</span>
+                <span class="field__error hidden" id="amount-error"></span>
+              </label>
+
+              <label class="field" style="margin-top: 0">
+                <span class="label">recipient_lock_hash</span>
+                <input
+                  class="input input--mono"
+                  id="create-recipient"
+                  placeholder="ckb1q… address or 0x… 20 byte hash"
+                  spellcheck="false"
+                />
+                <span class="field__hint">Where the grant lands if the vote passes</span>
+                <span class="field__error hidden" id="recipient-error"></span>
+              </label>
+            </div>
+
+            <div class="row row--wrap" style="margin-top: 20px">
+              <button class="btn btn--primary btn--lg" type="submit" id="create-submit">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v5h5"/><path d="M12 12v6"/><path d="M9 15h6"/></svg>
+                Create proposal cell
+              </button>
+              <button class="btn btn--ghost" type="button" id="create-reset">Clear</button>
+              <span class="spacer" style="flex: 1"></span>
+              <span class="dim" style="font-size: 12.5px" id="create-note">asks the wallet to sign</span>
+            </div>
+          </div>
+
+          <aside class="creator__side">
+            <span class="eyebrow">Transaction preview</span>
+            <div class="stack" id="create-preview"></div>
+            <div class="divider" style="margin: 4px 0"></div>
+            <div class="checklist">
+              <span class="checklist__item">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                args follow the Type ID rule, so the type script is unique
+              </span>
+              <span class="checklist__item">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                <code>total_yes</code> starts at 0, <code>origin_block_number</code> is filled on finalize
+              </span>
+              <span class="checklist__item">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                the bond is lost if the proposal is challenged
+              </span>
+            </div>
+          </aside>
+        </form>
+      </section>
+
+      <section class="section" id="my-proposals">
+        <div class="section__head">
+          <h2 class="section__title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/></svg>
+            Cells of this address <span class="dim mono-sm" id="initiator-count"></span>
+          </h2>
+          <div class="filterbar" id="initiator-filters">
+            <button class="chip" type="button" data-filter="all" aria-pressed="true">
+              All cells <span class="chip__count" id="count-all">0</span>
+            </button>
+            <button class="chip" type="button" data-filter="0" aria-pressed="false">
+              Proposal <span class="chip__count" id="count-open">0</span>
+            </button>
+            <button class="chip" type="button" data-filter="1" aria-pressed="false">
+              Finalized <span class="chip__count" id="count-finalized">0</span>
+            </button>
+            <button class="chip" type="button" data-filter="2" aria-pressed="false">
+              Passed <span class="chip__count" id="count-passed">0</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="initiator-list" class="stack"></div>
+      </section>
+    </main>
+
+    <div data-shell="footer"></div>
+    <script type="module" src="assets/js/main.js"></script>
+  </body>
+</html>

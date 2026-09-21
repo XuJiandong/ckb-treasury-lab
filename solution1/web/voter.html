@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CKB Voting — For Voter</title>
+    <meta
+      name="description"
+      content="Mockup of the voter page: browse live proposals, vote with the whole DAO deposit and withdraw the vote cell."
+    />
+    <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/css/tokens.css" />
+    <link rel="stylesheet" href="assets/css/pages.css" />
+  </head>
+  <body data-page="voter">
+    <div data-shell="header"></div>
+
+    <main class="page">
+      <section class="section" style="margin-top: 12px">
+        <div class="section__head section__head--stack">
+          <div>
+            <span class="eyebrow">
+              <span class="badge__dot" style="color: var(--yes)"></span>
+              For Voter
+            </span>
+            <h1 style="font-size: 30px; margin-top: 12px">Proposals in their voting window</h1>
+            <p class="muted" style="margin-top: 10px; max-width: 70ch">
+              One vote cell per proposal. A vote spends your entire DAO deposit and stays
+              withdrawable until the proposal is finalized.
+            </p>
+          </div>
+          <div class="section__side">
+            <span class="badge badge--open" id="live-indicator"><span class="badge__dot"></span>voting is open</span>
+            <span class="badge" id="voter-block-badge">block —</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" style="margin-top: 22px">
+        <div class="stats" id="voter-stats"></div>
+      </section>
+
+      <section class="section" id="proposal-list-section">
+        <div class="section__head">
+          <h2 class="section__title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v5h5"/><path d="M8 13h8"/><path d="M8 17h5"/></svg>
+            Proposals <span class="dim mono-sm" id="proposal-count"></span>
+          </h2>
+          <div class="filterbar" id="voter-filters">
+            <label class="search">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"/><path d="m21 21-4.3-4.3"/></svg>
+              <input class="input" type="search" id="proposal-search" placeholder="Search description or recipient" />
+            </label>
+            <button class="chip" type="button" data-filter="all" aria-pressed="true">
+              All live <span class="chip__count" id="count-all">0</span>
+            </button>
+            <button class="chip" type="button" data-filter="voted" aria-pressed="false">
+              My votes <span class="chip__count" id="count-voted">0</span>
+            </button>
+            <button class="chip" type="button" data-filter="ending" aria-pressed="false">
+              Ending soon <span class="chip__count" id="count-ending">0</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="voter-list" class="stack"></div>
+
+        <p class="dim" style="font-size: 12.5px; margin-top: 16px" id="voter-footnote"></p>
+      </section>
+    </main>
+
+    <div data-shell="footer"></div>
+    <script type="module" src="assets/js/main.js"></script>
+  </body>
+</html>
