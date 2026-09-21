@@ -43,7 +43,7 @@ export const Direction = {
 export type Direction = (typeof Direction)[keyof typeof Direction];
 
 /** The largest `hash_type` byte the contracts accept (`MAX_SCRIPT_HASH_TYPE`). */
-export const MAX_HASH_TYPE_BYTE = 2;
+export const MAX_HASH_TYPE_BYTE = 4;
 
 /**
  * Code hashes of the genesis system scripts, identical on every chain.
@@ -66,8 +66,6 @@ export const HASH_TYPE_BYTES: Record<ccc.HashType, number> = {
   data: 0,
   type: 1,
   data1: 2,
-  // CKB defines `data2` as 4, which is beyond the largest hash type the
-  // contracts accept (`MAX_SCRIPT_HASH_TYPE`); it can never be configured.
   data2: 4,
 };
 

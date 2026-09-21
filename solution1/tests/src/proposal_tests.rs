@@ -73,7 +73,7 @@ fn update_tx(
     proposal: &Proposal,
     since: u64,
     output: &ProposalOutput,
-    counting: &[OutPoint],
+    counting: &[PlacedCell],
 ) -> TransactionView {
     let lock = fixture.lock.clone();
     let config_cell = fixture.config_cell.clone();
@@ -96,6 +96,7 @@ fn update_tx(
         output.origin_block_number,
     );
 
+    let mut headers = vec![proposal.block_hash.clone()];
     let mut builder = TransactionBuilder::default()
         .input(
             CellInput::new_builder()
@@ -105,13 +106,14 @@ fn update_tx(
         )
         .cell_dep(dep(&config_cell))
         .outputs(outputs)
-        .outputs_data([data, Bytes::new()].pack())
-        // The finalized transition reads the creating block of the proposal
-        // input through `header_deps`.
-        .header_deps([proposal.block_hash.clone()].pack());
+        .outputs_data([data, Bytes::new()].pack());
     for cell in counting {
-        builder = builder.cell_dep(dep(cell));
+        builder = builder.cell_dep(dep(&cell.out_point));
+        if let Some(hash) = &cell.block_hash {
+            headers.push(hash.clone());
+        }
     }
+    let builder = builder.header_deps(Fixture::header_deps(headers).pack());
     fixture.context.complete_tx(builder.build())
 }
 
@@ -122,9 +124,10 @@ fn settle_tx(
     since: u64,
     outputs: Vec<CellOutput>,
     outputs_data: Vec<Bytes>,
-    extra_deps: &[OutPoint],
+    extra_deps: &[PlacedCell],
 ) -> TransactionView {
     let config_cell = fixture.config_cell.clone();
+    let mut headers = Vec::new();
     let mut builder = TransactionBuilder::default()
         .input(
             CellInput::new_builder()
@@ -136,7 +139,13 @@ fn settle_tx(
         .outputs(outputs)
         .outputs_data(outputs_data.pack());
     for cell in extra_deps {
-        builder = builder.cell_dep(dep(cell));
+        builder = builder.cell_dep(dep(&cell.out_point));
+        if let Some(hash) = &cell.block_hash {
+            headers.push(hash.clone());
+        }
+    }
+    if !headers.is_empty() {
+        builder = builder.header_deps(Fixture::header_deps(headers).pack());
     }
     fixture.context.complete_tx(builder.build())
 }
@@ -413,7 +422,7 @@ fn test_finalize_proposal() {
         &proposal,
         relative_since(VOTE_DURATION + 1),
         &output,
-        &[counting.out_point],
+        &[counting],
     );
 
     let cycles = fixture
@@ -421,6 +430,28 @@ fn test_finalize_proposal() {
         .verify_tx(&tx, MAX_CYCLES)
         .expect("the proposal is finalized");
     println!("consume cycles: {}", cycles);
+}
+
+/// Spec: proposal, "Updating to be finalized" - votes may only be collected once
+/// `config.vote_duration` blocks elapsed since the proposal was created, so a
+/// counting cell created exactly at `proposal_block + vote_duration` is early.
+#[test]
+fn test_finalize_counting_cell_created_too_early() {
+    let mut fixture = Fixture::new();
+    let proposal = open_proposal(&mut fixture);
+    let mut spec = fixture.counting_spec(&proposal);
+    spec.block = Some(proposal.block_number + VOTE_DURATION);
+    let counting = fixture.counting_cell(&spec);
+    let output = finalized_output(&fixture, &proposal, YES_THRESHOLD);
+    let tx = update_tx(
+        &mut fixture,
+        &proposal,
+        relative_since(VOTE_DURATION + 1),
+        &output,
+        &[counting],
+    );
+
+    assert_script_error(&fixture.context, &tx, Error::CountingCellTooEarly);
 }
 
 /// Spec: proposal, "Updating to be finalized" - the `since` must be larger than
@@ -548,7 +579,7 @@ fn test_finalize_yes_threshold_not_met() {
         &proposal,
         relative_since(VOTE_DURATION + 1),
         &output,
-        &[counting.out_point],
+        &[counting],
     );
 
     assert_script_error(&fixture.context, &tx, Error::YesThresholdNotMet);
@@ -567,7 +598,7 @@ fn test_finalize_total_yes_must_be_the_sum() {
         &proposal,
         relative_since(VOTE_DURATION + 1),
         &output,
-        &[counting.out_point],
+        &[counting],
     );
 
     assert_script_error(&fixture.context, &tx, Error::ProposalDataInvalid);
@@ -588,7 +619,7 @@ fn test_finalize_origin_mismatch() {
         &proposal,
         relative_since(VOTE_DURATION + 1),
         &output,
-        &[counting.out_point],
+        &[counting],
     );
 
     assert_script_error(&fixture.context, &tx, Error::ProposalDataInvalid);
@@ -617,7 +648,7 @@ fn test_finalize_overlapping_ranges() {
         &proposal,
         relative_since(VOTE_DURATION + 1),
         &output,
-        &[first.out_point, second.out_point],
+        &[first, second],
     );
 
     assert_script_error(&fixture.context, &tx, Error::CountingRangeOverlap);
@@ -638,7 +669,7 @@ fn test_finalize_rejects_a_foreign_counting_cell() {
         &proposal,
         relative_since(VOTE_DURATION + 1),
         &output,
-        &[foreign.out_point],
+        &[foreign],
     );
 
     assert_script_error(&fixture.context, &tx, Error::CountingCellInvalid);
@@ -891,7 +922,7 @@ fn test_challenge_proposal() {
         relative_since(0),
         outputs,
         vec![Bytes::new()],
-        &[counting.out_point],
+        &[counting],
     );
 
     let cycles = fixture
@@ -899,6 +930,34 @@ fn test_challenge_proposal() {
         .verify_tx(&tx, MAX_CYCLES)
         .expect("the challenge wins the bond");
     println!("consume cycles: {}", cycles);
+}
+
+/// Spec: proposal, "Updating to be challenged" - a challenge repeats the
+/// finalization rule, so a "NO" counting cell created before the voting duration
+/// elapsed is rejected as well.
+#[test]
+fn test_challenge_counting_cell_created_too_early() {
+    let mut fixture = Fixture::new();
+    let proposal = proposal_with_status(
+        &mut fixture,
+        status::PROPOSAL_STATUS_FINALIZED,
+        YES_THRESHOLD,
+    );
+    let mut spec = fixture.counting_spec(&proposal);
+    spec.direction = status::DIRECTION_NO;
+    spec.block = Some(proposal.origin_block_number + VOTE_DURATION);
+    let counting = fixture.counting_cell(&spec);
+    let outputs = vec![change_output(&fixture)];
+    let tx = settle_tx(
+        &mut fixture,
+        &proposal,
+        relative_since(0),
+        outputs,
+        vec![Bytes::new()],
+        &[counting],
+    );
+
+    assert_script_error(&fixture.context, &tx, Error::CountingCellTooEarly);
 }
 
 /// Spec: proposal, "Updating to be challenged" - the challenge needs
@@ -920,7 +979,7 @@ fn test_challenge_below_the_bar() {
         relative_since(0),
         outputs,
         vec![Bytes::new()],
-        &[counting.out_point],
+        &[counting],
     );
 
     assert_script_error(&fixture.context, &tx, Error::ChallengeNotMet);

@@ -73,6 +73,8 @@ pub enum Error {
     /// A successful challenge does not pay a lock script used by its counting
     /// cells, so the challenger would not receive the bond.
     ChallengeRewardMissing = 56,
+    /// A counting cell was created before `config.vote_duration` elapsed.
+    CountingCellTooEarly = 57,
 
     // ------------------------------------------------------ vote type script
     /// The vote cell data is not a well formed `Vote`.

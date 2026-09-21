@@ -27,6 +27,10 @@ export function registerCountingCommands(program: Command): void {
       "vote cells to aggregate; defaults to every matching vote cell",
     )
     .option("--lock <address>", "lock of the counting cell")
+    .option(
+      "--wait",
+      "wait until config.vote_duration elapsed before creating the cell",
+    )
     .action(
       act(async (options) => {
         const signer = signerOf(options);
@@ -42,6 +46,7 @@ export function registerCountingCommands(program: Command): void {
               )
             : undefined,
           lock: options.lock,
+          wait: options.wait,
         });
         output(
           options,

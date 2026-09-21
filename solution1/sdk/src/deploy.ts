@@ -1,19 +1,10 @@
 /**
- * Publishing the voting contracts.
- *
- * Each binary becomes a plain code cell locked by the deployer, referenced
- * with `hash_type: data1`: the code hash is then the ckb-hash of the binary,
- * which the SDK computes itself, so a deployment needs neither a Type ID
- * script nor any off-chain bookkeeping.
- *
- * `data1` rather than `data` is deliberate: a script whose hash type is `data`
- * runs on VM version 0, and the ckb-std 1.x binaries need version 1 (their
- * allocator assumes the version 1 memory layout). `data1` selects version 1
- * while keeping the same code hash, and it also leaves room for upgrading the
- * code cell later. A deployment that wants a Type ID lineage can still write a
- * `hash_type: type` config by hand.
+ * Publishing the voting contracts. Used for e2e tests and other testing only.
+ * Use ckb-cli to deploy these binaries for testnet or production use.
  */
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { ccc } from "@ckb-ccc/shell";
 import {
   SCRIPT_KEYS,
@@ -24,6 +15,26 @@ import { ckbHash, resolveLock, signerLock } from "./utils.js";
 
 /** The compiled binaries of the five scripts. */
 export type ContractBinaries = Record<ScriptKey, ccc.BytesLike>;
+
+/** File name of each compiled contract in `build/release`. */
+export const CONTRACT_BINARY_FILES: Record<ScriptKey, string> = {
+  config: "config-type-script",
+  proposal: "proposal-type-script",
+  vote: "vote-type-script",
+  counting: "counting-type-script",
+  alwaysSuccess: "always-success",
+};
+
+/** Reads the five compiled binaries from a `build/release`-style directory. */
+export function readContractBinaries(directory: string): ContractBinaries {
+  const binaries = {} as ContractBinaries;
+  for (const key of SCRIPT_KEYS) {
+    binaries[key] = new Uint8Array(
+      readFileSync(join(directory, CONTRACT_BINARY_FILES[key])),
+    );
+  }
+  return binaries;
+}
 
 /** The result of {@link deployScripts}. */
 export interface DeployScriptsResult {
@@ -73,7 +84,7 @@ export async function deployScripts(
   SCRIPT_KEYS.forEach((key, index) => {
     scripts[key] = {
       codeHash: ckbHash(datas[index]),
-      hashType: "data1",
+      hashType: "data2",
       args: "0x",
       cellDep: { txHash, index, depType: "code" },
     };

@@ -26,6 +26,7 @@ export * from "./utils.js";
 export * from "./query.js";
 export * from "./deploy.js";
 export * from "./devnet.js";
+export * from "./dao.js";
 export * from "./config-cell.js";
 export * from "./proposal.js";
 export * from "./vote.js";

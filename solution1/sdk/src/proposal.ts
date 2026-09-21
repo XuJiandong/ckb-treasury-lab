@@ -123,6 +123,34 @@ function sumCountingCells(
 }
 
 /**
+ * Adds the counting cells' creating headers to `tx` and rejects any cell
+ * created before `origin + config.vote_duration`.
+ */
+async function addCountingCellHeaders(
+  tx: ccc.Transaction,
+  client: ccc.Client,
+  counting: CountingCellInfo[],
+  origin: bigint,
+  voteDuration: bigint,
+): Promise<void> {
+  const headers = await addHeaderDeps(
+    tx,
+    client,
+    counting.map(({ cell }) => cell.outPoint),
+  );
+  for (const [index, header] of headers.entries()) {
+    if (header.number <= origin + voteDuration) {
+      throw new Error(
+        `counting cell ${formatOutPoint(counting[index].cell.outPoint)} was ` +
+          `created in block ${header.number}, before config.vote_duration ` +
+          `elapsed at block ${origin + voteDuration + 1n}; collect the votes ` +
+          `later (see createCountingCell({ wait: true }))`,
+      );
+    }
+  }
+}
+
+/**
  * Creates a proposal cell.
  *
  * The proposal type script is a Type ID, so its args are computed from the
@@ -282,6 +310,13 @@ export async function finalizeProposal(
     ),
   ]);
   await addHeaderDeps(tx, client, [params.proposalOutPoint]);
+  await addCountingCellHeaders(
+    tx,
+    client,
+    counting,
+    origin.number,
+    info.data.voteDuration,
+  );
 
   await tx.completeFeeBy(signer, feeRateOf(config));
   return signer.sendTransaction(tx);
@@ -437,6 +472,13 @@ export async function challengeProposal(
       ccc.CellDep.from({ outPoint: cell.outPoint, depType: "code" }),
     ),
   ]);
+  await addCountingCellHeaders(
+    tx,
+    client,
+    counting,
+    proposal.data.originBlockNumber,
+    info.data.voteDuration,
+  );
 
   await tx.completeFeeBy(signer, feeRateOf(config));
   return signer.sendTransaction(tx);

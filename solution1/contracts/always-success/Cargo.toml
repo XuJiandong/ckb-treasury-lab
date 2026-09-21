@@ -3,15 +3,18 @@ name = "always-success"
 version = "0.1.0"
 edition = "2024"
 
+# The script has no dependency at all: its whole behaviour is "exit(0)". Every
+# crate that used to be pulled in here (ckb-std and, through it, the buddy
+# allocator, the logger, ckb-gen-types, ...) only added bytes to the code cell,
+# so the release build is freestanding. See `src/main.rs`.
 [dependencies]
-ckb-std = "1.1"
 
 [features]
-# Logging is on by default: the scripts report what they do to the node log.
-# Build with `--no-default-features` for a minimal, logging free binary.
-default = ["enable_log"]
+default = []
+# Build the crate as a library (native tests / simulators) instead of as a
+# freestanding CKB script.
 library = []
-native-simulator = ["library", "ckb-std/native-simulator"]
-# Emit the `log!`, `warn!` and `error!` messages of this script to the node log
-# (`ckb-std`'s logger).
-enable_log = ["ckb-std/log"]
+native-simulator = ["library"]
+# Kept as a no-op for command lines that still pass it; the script no longer
+# logs anything.
+enable_log = []

@@ -106,9 +106,9 @@ impl Config {
     /// Rejects values that can never be meaningful.
     pub fn validate(&self) -> Result<(), Error> {
         if self.emergent_halt > 1
-            || self.vote_hash_type > constants::MAX_SCRIPT_HASH_TYPE
-            || self.counting_hash_type > constants::MAX_SCRIPT_HASH_TYPE
-            || self.always_success_hash_type > constants::MAX_SCRIPT_HASH_TYPE
+            || !constants::is_valid_script_hash_type(self.vote_hash_type)
+            || !constants::is_valid_script_hash_type(self.counting_hash_type)
+            || !constants::is_valid_script_hash_type(self.always_success_hash_type)
         {
             return Err(Error::ConfigCellInvalid);
         }

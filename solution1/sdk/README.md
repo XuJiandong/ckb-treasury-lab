@@ -21,6 +21,7 @@ src/
   proposal.ts     create, finalize, pass, challenge, recycle, veto, grant
   vote.ts         cast and withdraw a vote
   counting.ts     create and consume a counting cell
+  dao.ts          create the Nervos DAO deposits a vote is backed by
   deploy.ts       publish the contract binaries
   devnet.ts       derive a devnet's known-script cell deps from block 0
   cli/            the ckb-vote CLI
@@ -71,7 +72,7 @@ bun run src/cli/index.ts vote \
 COUNTING=$(bun run src/cli/index.ts create-counting \
   --config ../deployment/devnet.json --private-key-file pk \
   --proposal $PROPOSAL:0 --direction yes \
-  --start-hash 0 --end-hash 65535 --json | jq -r .countingCell.txHash)
+  --start-hash 0 --end-hash 65535 --wait --json | jq -r .countingCell.txHash)
 
 # 6. Finalize after vote_duration, pass after challenge_time, claim the grant.
 bun run src/cli/index.ts finalize-proposal \
@@ -92,6 +93,43 @@ Every command accepts `--config <path>`, `--rpc-url <url>` and `--json`;
 After `bun link` (or `bun install -g .`) the same commands are available as
 `ckb-vote`, which runs `bin/ckb-vote.ts` with Bun.
 
+## End-to-end run
+
+`e2e` performs the whole quick start in one command. It starts the devnet
+itself - `ckb run` and `ckb miner`, with `devnet/` as their working directory -
+and needs no parameter:
+
+```sh
+cd sdk
+bun run src/cli/index.ts e2e
+```
+
+It derives the devnet scripts from block 0, deploys the five contracts with
+`hash_type: data2`, mints the config cell with `--vote-duration 5
+--vote-window 5 --challenge-time 1`, creates a `dao-deposit`, and then runs
+`create-proposal -> vote -> create-counting -> finalize-proposal ->
+pass-proposal`. `receive-grant` is intentionally left out. The deployment
+config it writes (and uses) is `./devnet.config`; `--config` / `--rpc-url`
+override the defaults.
+
+A process that does not come up within nine seconds is restarted, and the run
+reports an error and quits with exit code 1 if it still cannot start after two
+retries (the `ckb` binary must exist under `devnet/`). It shuts both processes
+down when it exits - normally, on failure or on `Ctrl-C` - unless
+`--keep-running` is passed.
+
+A vote needs a DAO deposit older than the proposal, so `dao-deposit` is
+available on its own too:
+
+```sh
+# Bootstrap config only needs rpcUrl and knownScripts.
+bun run src/cli/index.ts dao-deposit --amount 1000 --private-key <hex>
+```
+
+The deposit output is locked by the signer's lock and carries the Nervos DAO
+type script with 8 zero bytes of data; the transaction lists the DAO code cell
+of the genesis block (`tx[0] output[2]`) in `cell_deps`.
+
 ## Deployment config
 
 Nothing about a deployment is hard-coded: scripts, code cells and the config
@@ -104,9 +142,9 @@ cell all live in one JSON file (`deployment.example.json` shows the shape).
   "rpcUrl": "http://127.0.0.1:8114",
   "feeRate": 1500,
   "scripts": {
-    "config":        { "codeHash": "0x..", "hashType": "data1", "args": "0x<Type ID>",
+    "config":        { "codeHash": "0x..", "hashType": "data2", "args": "0x<Type ID>",
                        "cellDep": { "txHash": "0x..", "index": 0, "depType": "code" } },
-    "proposal":      { "codeHash": "0x..", "hashType": "data1", "cellDep": { ... } },
+    "proposal":      { "codeHash": "0x..", "hashType": "data2", "cellDep": { ... } },
     "vote":          { ... },
     "counting":      { ... },
     "alwaysSuccess": { ... }
@@ -166,6 +204,7 @@ const counting = await createCountingCell(signer, config, {
   direction: "yes",
   startHash: 0,
   endHash: 0xffff,
+  wait: true, // collect only after config.vote_duration elapsed
 });
 
 await finalizeProposal(signer, config, {
@@ -183,44 +222,3 @@ Every operation throws before sending anything when a local rule of the
 specification is violated (empty hash range, overlapping counting ranges, "NO"
 votes below `total_yes`, a grant that does not pay `recipient_lock_hash`, …), and
 the contract still validates the transaction on chain.
-
-## What the SDK handles
-
-- **Type IDs.** The config and proposal type scripts are Type IDs, so their
-  `args` are derived from the first input and the output index after the inputs
-  are collected.
-- **Cell deps.** Every script code cell, the config cell, the referenced
-  proposal / vote / counting cells and the DAO deposits are added exactly once:
-  CKB rejects a transaction whose `cell_deps` repeat a packed dependency
-  (`DuplicateDepsVerifier`). The DAO deposit dependencies are also moved in
-  front of every other dependency when a vote is cast.
-- **Header deps.** The scripts read the creating block of a cell through
-  `load_header`, so the SDK lists exactly the headers the transaction needs.
-- **`since`.** `finalize`, `pass` and `recycle` set a relative, block-number
-  `since` and can wait for the chain to reach the required block (`wait`).
-- **DAO deposits.** The vote is backed by the voter's deposited DAO cells that
-  are older than the proposal; newer ones are skipped and reported.
-
-## Notes and gotchas
-
-- **Bun only.** The package is TypeScript-first and uses Bun's native TS
-  execution; there is no `tsc` build step (`bunx tsc --noEmit` type checks).
-- **`hash_type` must not be `data`.** A script whose hash type is `data` runs
-  on CKB VM version 0, which the ckb-std 1.x binaries cannot use
-  (`MemWriteOnExecutablePage`). `deploy` publishes with `data1` for this
-  reason; hand-written configs should use `data1` or `type`.
-- **Dependency groups and DAO deposits.** The vote script counts a DAO deposit
-  only when it is written down before the first `dep_group` in `cell_deps`
-  (`end_of_dao_deposit`): the VM expands a group in place, so a group member can
-  never inflate the vote. The SDK puts the deposit dependencies first before
-  signing, which keeps a vote valid even though the signer appends its own lock
-  dependency - the secp256k1 group on a public chain - while completing the fee.
-- **`vote_window`.** A vote cell must be counted within `config.vote_window`
-  blocks after the proposal was created; `create-counting` reports the offending
-  cell instead of sending a doomed transaction.
-- **Queries list live cells only.** `list-proposals` shows the proposals that
-  still exist; a consumed (recycled, vetoed, challenged or granted) proposal no
-  longer appears.
-- **Indexer.** The discovery commands (`list-*`, config cell discovery, vote
-  and deposit lookup) use the node's `get_cells` indexer; every write command
-  also works from explicit out points.

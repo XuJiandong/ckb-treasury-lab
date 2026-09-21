@@ -8,7 +8,9 @@
 
 import { Command } from "commander";
 import { registerConfigCommands } from "./commands/config.js";
+import { registerDaoCommands } from "./commands/dao.js";
 import { registerDeployCommand } from "./commands/deploy.js";
+import { registerE2eCommand } from "./commands/e2e.js";
 import { registerProposalCommands } from "./commands/proposal.js";
 import { registerVoteCommands } from "./commands/vote.js";
 import { registerCountingCommands } from "./commands/counting.js";
@@ -23,9 +25,11 @@ program
 
 registerDeployCommand(program);
 registerConfigCommands(program);
+registerDaoCommands(program);
 registerProposalCommands(program);
 registerVoteCommands(program);
 registerCountingCommands(program);
 registerQueryCommands(program);
+registerE2eCommand(program);
 
 await program.parseAsync(process.argv);

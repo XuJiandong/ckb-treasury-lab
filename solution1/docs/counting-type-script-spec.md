@@ -42,8 +42,9 @@ For each vote cell in `cell_deps`, the script subtracts the proposal cell's bloc
 ## Others
 When the number of vote cells is large, it is suggested to slice them into several counting cells. Each counting cell handles an average-sized batch of vote cells. A counting cell's responsibility is to enable counting to work across different transactions and to reduce the workload.
 
-The time to collect vote cells is not strict: "yes" votes may be collected at any time before the proposal cell is consumed, and "no" votes for a challenge at any time before the finalized proposal cell is consumed.
-When votes are "yes", the script must verify that the referenced cell is a proposal cell.
+Vote cells can be collected only after `config.vote_duration` blocks have elapsed since the proposal cell was created. This is verified in the proposal cell.
+
+The "yes" votes may be collected at any time after `config.vote_duration` blocks have elapsed since the proposal cell was created and before the proposal cell is consumed, and "no" votes for a  challenge at any time before the finalized proposal cell is consumed. When votes are "yes", the script must verify that the referenced cell is a proposal cell.
 When votes are "no", the script must verify that the referenced cell is either a proposal cell or a finalized proposal cell. 
 
 The counting cells are controlled by their creators — the initiator for "yes" votes and the challenger for "no" votes — who can count the votes exactly before the referenced cell is consumed.

@@ -10,8 +10,21 @@ pub const SCRIPT_HASH_TYPE_DATA: u8 = 0;
 pub const SCRIPT_HASH_TYPE_TYPE: u8 = 1;
 /// Script hash type `data1` (like `data`, but the code cell may be upgraded).
 pub const SCRIPT_HASH_TYPE_DATA1: u8 = 2;
+/// Script hash type `data2` (like `data1`, but the code runs on CKB VM version 2).
+pub const SCRIPT_HASH_TYPE_DATA2: u8 = 4;
 /// The largest valid script hash type.
-pub const MAX_SCRIPT_HASH_TYPE: u8 = SCRIPT_HASH_TYPE_DATA1;
+pub const MAX_SCRIPT_HASH_TYPE: u8 = SCRIPT_HASH_TYPE_DATA2;
+
+/// Tells whether `value` is a script hash type a config cell may record.
+///
+/// The values are not contiguous (`data2` is 4, so 3 is not a hash type), which
+/// is why this is a membership test rather than a `<= MAX` bound.
+pub const fn is_valid_script_hash_type(value: u8) -> bool {
+    value == SCRIPT_HASH_TYPE_DATA
+        || value == SCRIPT_HASH_TYPE_TYPE
+        || value == SCRIPT_HASH_TYPE_DATA1
+        || value == SCRIPT_HASH_TYPE_DATA2
+}
 
 /// The length of a Type ID, and of the ckb-blake160-hash of a script.
 pub const TYPE_ID_LEN: usize = 20;

@@ -22,9 +22,6 @@ dependencies = [
 [[package]]
 name = "always-success"
 version = "0.1.0"
-dependencies = [
- "ckb-std",
-]
 
 [[package]]
 name = "anyhow"

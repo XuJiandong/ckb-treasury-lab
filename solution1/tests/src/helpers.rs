@@ -1,11 +1,11 @@
 //! Shared fixtures, builders and assertions for the voting system type script
 //! tests.
 //!
-//! Every test bootstraps its own [`Fixture`]: the bootstrap deploys the four
-//! contract binaries plus the `always success` lock and derives every script
-//! identity from those deployed cells. Nothing here hard-codes a synthetic
-//! code hash: the config cell points at the scripts the tests actually deploy,
-//! exactly like production deployment does.
+//! Every test bootstraps its own [`Fixture`]: the bootstrap deploys the five
+//! contract binaries - including the `always success` lock - and derives every
+//! script identity from those deployed cells. Nothing here hard-codes a
+//! synthetic code hash: the config cell points at the scripts the tests
+//! actually deploy, exactly like production deployment does.
 //!
 //! A [`Fixture`] also plays the role of a tiny chain: it hands out block
 //! headers, links cells to the block that created them and can assemble the
@@ -13,7 +13,6 @@
 //! syscalls. See the module level comments on [`Fixture::at_block`].
 
 use ckb_testtool::{
-    builtin::ALWAYS_SUCCESS,
     ckb_hash::new_blake2b,
     ckb_script::{ScriptError, TransactionScriptError},
     ckb_types::{
@@ -349,7 +348,7 @@ impl Fixture {
     /// Deploys the contracts and mints the default config cell.
     pub fn new() -> Self {
         let mut context = Context::default();
-        let always_success_out_point = context.deploy_cell(ALWAYS_SUCCESS.clone());
+        let always_success_out_point = context.deploy_cell_by_name("always-success");
         let config_out_point = context.deploy_cell_by_name("config-type-script");
         let proposal_out_point = context.deploy_cell_by_name("proposal-type-script");
         let vote_out_point = context.deploy_cell_by_name("vote-type-script");
@@ -660,7 +659,7 @@ impl Fixture {
             vote_amount: VOTE_AMOUNT,
             capacity: CERTIFICATE_CAPACITY,
             lock: self.lock.clone(),
-            block: None,
+            block: Some(proposal.block_number + VOTE_DURATION + 1),
         }
     }
 

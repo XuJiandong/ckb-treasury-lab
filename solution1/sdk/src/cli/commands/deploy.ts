@@ -3,11 +3,11 @@
  * config for them.
  */
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { Command } from "commander";
-import { SCRIPT_KEYS, type ScriptKey } from "../../config.js";
-import { deployScripts, type ContractBinaries } from "../../deploy.js";
+import { SCRIPT_KEYS } from "../../config.js";
+import { deployScripts, readContractBinaries } from "../../deploy.js";
 import { deriveKnownScripts } from "../../devnet.js";
 import { buildClient } from "../../client.js";
 import {
@@ -19,15 +19,6 @@ import {
   formatOutPoint,
   output,
 } from "../shared.js";
-
-/** File name of each compiled contract in `build/release`. */
-const BINARY_FILES: Record<ScriptKey, string> = {
-  config: "config-type-script",
-  proposal: "proposal-type-script",
-  vote: "vote-type-script",
-  counting: "counting-type-script",
-  alwaysSuccess: "always-success",
-};
 
 export function registerDeployCommand(program: Command): void {
   addCommonOptions(program.command("devnet-scripts"))
@@ -90,11 +81,7 @@ export function registerDeployCommand(program: Command): void {
         const bootstrap = bootstrapOf(options);
         const signer = bootstrapSignerOf(options);
 
-        const binaries = {} as ContractBinaries;
-        for (const key of SCRIPT_KEYS) {
-          const path = join(options.binariesDir, BINARY_FILES[key]);
-          binaries[key] = new Uint8Array(readFileSync(path));
-        }
+        const binaries = readContractBinaries(options.binariesDir);
 
         const result = await deployScripts(signer, binaries, {
           lock: options.lock,
