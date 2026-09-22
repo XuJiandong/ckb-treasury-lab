@@ -7,7 +7,7 @@ and runs **only under Bun** (developed with `bun 1.4.2`).
 
 The SDK builds and sends the transactions the four type scripts expect, and
 queries the cells they produce. Every rule it enforces locally comes from
-`docs/*.md` and from `contracts/*/src/main.rs`.
+`docs/*.md` and from `contracts`.
 
 ```
 src/
@@ -90,45 +90,19 @@ Every command accepts `--config <path>`, `--rpc-url <url>` and `--json`;
 `--private-key` or `--private-key-file` is needed to send a transaction. Run
 `bun run src/cli/index.ts --help` for the full list.
 
-After `bun link` (or `bun install -g .`) the same commands are available as
-`ckb-vote`, which runs `bin/ckb-vote.ts` with Bun.
-
 ## End-to-end run
 
 `e2e` performs the whole quick start in one command. It starts the devnet
-itself - `ckb run` and `ckb miner`, with `devnet/` as their working directory -
-and needs no parameter:
+itself - `ckb run` and `ckb miner`, with `devnet/`. And run:
 
 ```sh
 cd sdk
 bun run src/cli/index.ts e2e
 ```
 
-It derives the devnet scripts from block 0, deploys the five contracts with
-`hash_type: data2`, mints the config cell with `--vote-duration 5
---vote-window 5 --challenge-time 1`, creates a `dao-deposit`, and then runs
-`create-proposal -> vote -> create-counting -> finalize-proposal ->
-pass-proposal`. `receive-grant` is intentionally left out. The deployment
-config it writes (and uses) is `./devnet.config`; `--config` / `--rpc-url`
-override the defaults.
+It deploys the five contracts then runs `create-proposal -> vote -> create-counting -> finalize-proposal -> pass-proposal`. 
 
-A process that does not come up within nine seconds is restarted, and the run
-reports an error and quits with exit code 1 if it still cannot start after two
-retries (the `ckb` binary must exist under `devnet/`). It shuts both processes
-down when it exits - normally, on failure or on `Ctrl-C` - unless
-`--keep-running` is passed.
-
-A vote needs a DAO deposit older than the proposal, so `dao-deposit` is
-available on its own too:
-
-```sh
-# Bootstrap config only needs rpcUrl and knownScripts.
-bun run src/cli/index.ts dao-deposit --amount 1000 --private-key <hex>
-```
-
-The deposit output is locked by the signer's lock and carries the Nervos DAO
-type script with 8 zero bytes of data; the transaction lists the DAO code cell
-of the genesis block (`tx[0] output[2]`) in `cell_deps`.
+The deployment config it writes (and uses) is `./devnet.config`; `--config` / `--rpc-url` override the defaults.
 
 ## Deployment config
 
@@ -182,7 +156,7 @@ import {
   ProposalStatus,
 } from "@ckb-vote/sdk";
 
-const config = loadConfig("../deployment/devnet.json");
+const config = loadConfig("devnet.json");
 const signer = new ccc.SignerCkbPrivateKey(buildClient(config), privateKey);
 
 const { proposalCell, proposalId } = await createProposal(signer, config, {
@@ -217,8 +191,3 @@ for await (const { cell, data } of findProposalCells(client, config)) {
   console.log(cell.outPoint, ProposalStatus[data.status], data.description);
 }
 ```
-
-Every operation throws before sending anything when a local rule of the
-specification is violated (empty hash range, overlapping counting ranges, "NO"
-votes below `total_yes`, a grant that does not pay `recipient_lock_hash`, …), and
-the contract still validates the transaction on chain.
