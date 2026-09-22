@@ -1047,6 +1047,83 @@ dialog.modal[open] {
   align-self: flex-start;
 }
 
+/* --------------------------------------------------------------------------
+   Challenger page
+   -------------------------------------------------------------------------- */
+
+/* The bond a challenger wins when the challenge settles. */
+.challengecell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(224, 160, 28, 0.4);
+  background: linear-gradient(120deg, rgba(245, 195, 59, 0.22), rgba(245, 195, 59, 0.04));
+}
+
+.challengecell__icon {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  color: #8a5a00;
+  background: rgba(245, 195, 59, 0.3);
+}
+
+.challengecell__body {
+  min-width: 0;
+  flex: 1 1 240px;
+}
+
+.challengecell__title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.challengecell__meta {
+  font-size: 12.5px;
+  color: var(--fg-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 3px;
+}
+
+/* The "NO vs YES" comparison of one finalized cell. */
+.challengepairs {
+  display: grid;
+  gap: 9px;
+}
+
+.challengepairs__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12.5px;
+}
+
+.challengepairs__value {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.challengepairs__value--no {
+  color: var(--no);
+}
+
+.challengepairs__value--yes {
+  color: var(--yes);
+}
+
+.challengepairs__value--need {
+  color: #a9760a;
+}
+
 /* Reusable inline spinner for full-block loading states */
 .loading-block {
   display: grid;
@@ -1086,6 +1163,18 @@ dialog.modal[open] {
   }
   .creator {
     grid-template-columns: minmax(0, 1fr);
+  }
+  /* Four destinations plus the wallet need a tighter pill below this width. */
+  .brand__tag {
+    display: none;
+  }
+  .nav {
+    margin-left: 6px;
+    gap: 2px;
+  }
+  .nav__link {
+    padding: 7px 9px;
+    font-size: 12.5px;
   }
 }
 

@@ -16,6 +16,7 @@ yes / no / finalized.
 | [`index.html`](index.html) | Welcome page: wallet indicator in the top right, the two entries, the whole `VotingConfig`, the cell/lock map |
 | [`voter.html`](voter.html) | `For Voter`: live proposals, yes/no tallies, threshold progress, vote / withdraw |
 | [`initiator.html`](initiator.html) | `For Proposal Initiator`: create / pre-check / count / finalize / pass, per-cell countdowns |
+| [`challenger.html`](challenger.html) | `For Challenger`: every finalized proposal cell, plus check / count NO / challenge |
 
 ## Run
 
@@ -50,6 +51,17 @@ python3 -m http.server 4321 --directory web
   * finalized → *Pass* (only after `challenge_time` elapsed), *Challenge info*;
   * expired without the threshold → *Recycle bond*;
   * passed → *Claim grant*.
+* **Challenger page** — reuses the same proposal-cell element (from
+  `assets/js/proposal-card.js`) for every finalized proposal cell, and shows the
+  comparison the script makes, `total_no ≥ total_yes`:
+  * *Can it be challenged?* — dry run over the NO votes the challenger can see;
+  * *Count NO votes* — creates one NO counting cell per lock script and reports
+    how many were generated (only ever direction `0`; the deferred "pick which
+    counting cells to use" filter is shown as a disabled `future` row);
+  * *Challenge* — consumes those counting cells plus the finalized cell and
+    mints the challenger cell that holds the bond, so the reward pays a lock
+    script one of the counting cells uses. Once settled the cell reads
+    `challenged · bond paid` and the reward cell is listed underneath.
 * **Deferred features** from the requirements are shown as disabled `future`
   rows: picking which counting cells to use, and voting with a part of a deposit.
 * *Reset demo data* in the header clears `localStorage` and restores the seeds.
@@ -58,18 +70,19 @@ python3 -m http.server 4321 --directory web
 
 ```
 web/
-├── index.html · voter.html · initiator.html
+├── index.html · voter.html · initiator.html · challenger.html
 ├── assets/css/tokens.css     # design tokens (light + yellow), base, components
 ├── assets/css/pages.css      # header, wallet menu, cards, page composition
 ├── assets/js/
 │   ├── main.js               # entry point: shell + wallet + page dispatch
 │   ├── mock-data.js          # config cell, type scripts, proposals, votes
-│   ├── api.js                # mock SDK surface (views, precheck, vote, …)
+│   ├── api.js                # mock SDK surface (views, precheck, vote, challenge…)
 │   ├── state.js              # localStorage state (BigInt aware)
 │   ├── ui.js                 # icons, toasts, badges, tallies, countdowns
 │   ├── dialogs.js            # promise based modals
 │   ├── layout.js             # header, wallet indicator, footer
-│   └── pages/                # welcome.js · voter.js · initiator.js
+│   ├── proposal-card.js      # the proposal-cell element, shared by both cell pages
+│   └── pages/                # welcome.js · voter.js · initiator.js · challenger.js
 └── tools/                    # headless-Chrome helpers used to verify the UI
 ```
 

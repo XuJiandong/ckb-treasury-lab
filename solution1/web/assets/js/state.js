@@ -7,7 +7,7 @@
 
 import { seedState } from "./mock-data.js";
 
-const KEY = "ckb-vote-mock-v5";
+const KEY = "ckb-vote-mock-v6";
 
 let state = seedState();
 const listeners = new Set();
@@ -28,7 +28,7 @@ function read() {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw, reviver);
-    if (!parsed || parsed.version !== 5 || !Array.isArray(parsed.proposals)) {
+    if (!parsed || parsed.version !== 6 || !Array.isArray(parsed.proposals)) {
       return null;
     }
     return parsed;

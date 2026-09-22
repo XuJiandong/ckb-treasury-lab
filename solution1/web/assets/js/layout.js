@@ -1,6 +1,6 @@
 /**
  * The shell: sticky header, wallet indicator and footer. Rendered into every
- * page so the three files stay consistent.
+ * page so the files stay consistent.
  */
 
 import * as api from "./api.js";
@@ -14,6 +14,7 @@ const NAV = [
   { id: "welcome", href: "index.html", label: "Welcome" },
   { id: "voter", href: "voter.html", label: "For Voter" },
   { id: "initiator", href: "initiator.html", label: "For Proposal Initiator" },
+  { id: "challenger", href: "challenger.html", label: "For Challenger" },
 ];
 
 const WALLETS = [

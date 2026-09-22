@@ -9,20 +9,10 @@ import { ProposalStatus } from "../api.js";
 import { ask, receiptDialog } from "../dialogs.js";
 import { animateBars, mountShell } from "../layout.js";
 import { CHAIN, CONFIG_CELL, MOCK_BOND_BALANCE } from "../mock-data.js";
+import { actionBar, actionItem, buildKv, proposalCard } from "../proposal-card.js";
 import { subscribe } from "../state.js";
-import {
-  alert,
-  countdown,
-  futureRow,
-  hashChip,
-  icon,
-  metric,
-  statusBadge,
-  tallyBar,
-  toast,
-  withBusy,
-} from "../ui.js";
-import { ckbToShannons, el, formatBlock, formatCkb, formatInt, percent, shorten, sleep } from "../util.js";
+import { alert, futureRow, icon, metric, toast, withBusy } from "../ui.js";
+import { ckbToShannons, formatBlock, formatCkb, formatInt, shorten, sleep } from "../util.js";
 
 const PAGE = { filter: "all" };
 
@@ -31,10 +21,13 @@ const PAGE = { filter: "all" };
    -------------------------------------------------------------------------- */
 
 function renderStats(views) {
-  const open = views.filter((view) => view.status === ProposalStatus.Open);
-  const finalized = views.filter((view) => view.status === ProposalStatus.Finalized);
-  const passed = views.filter((view) => view.status === ProposalStatus.Passed);
-  const bonded = views.reduce((sum, view) => sum + BigInt(view.bond), 0n);
+  const open = views.filter((view) => view.status === ProposalStatus.Open && !view.challenged);
+  const finalized = views.filter((view) => view.status === ProposalStatus.Finalized && !view.challenged);
+  const passed = views.filter((view) => view.status === ProposalStatus.Passed && !view.challenged);
+  const bonded = views.reduce(
+    (sum, view) => (view.challenged ? sum : sum + BigInt(view.bond)),
+    0n,
+  );
 
   document.getElementById("initiator-stats").replaceChildren(
     metric({
@@ -68,268 +61,88 @@ function renderStats(views) {
 }
 
 /* --------------------------------------------------------------------------
-   Proposal card
+   Actions
    -------------------------------------------------------------------------- */
 
-function stageStrip(view) {
-  const strip = document.createElement("div");
-  strip.className = "timeline";
-  const stages = [
-    { label: "created", done: true, current: false },
+/** The operations an initiator can run on one cell, by its current status. */
+function initiatorActions(view) {
+  const items = [
     {
-      label: "voting",
-      done: view.voteExpired,
-      current: view.status === ProposalStatus.Open && !view.voteExpired,
-    },
-    {
-      label: "finalized",
-      done: view.status !== ProposalStatus.Open,
-      current: view.status === ProposalStatus.Finalized,
-    },
-    {
-      label: "passed",
-      done: view.status === ProposalStatus.Passed,
-      current: false,
+      label: "Can it pass?",
+      icon: "gauge",
+      action: "check",
+      note: "dry run against yes_threshold",
+      onClick: (button) => onCheck(view, button),
     },
   ];
-  stages.forEach((stage, index) => {
-    const node = document.createElement("span");
-    node.className = `stage${stage.done ? " is-done" : ""}${stage.current ? " is-current" : ""}`;
-    node.append(icon(stage.done ? "check" : "circle-dot", { size: 13 }));
-    node.append(document.createTextNode(stage.label));
-    strip.append(node);
-    if (index < stages.length - 1) {
-      const sep = document.createElement("span");
-      sep.className = "stage__sep";
-      sep.append(icon("chevron-right", { size: 13 }));
-      strip.append(sep);
-    }
-  });
-  return strip;
-}
-
-function infoGrid(view) {
-  const grid = document.createElement("div");
-  grid.className = "proposal__meta";
-
-  const rows = [];
-  rows.push(buildKv("requested_amount", `${formatCkb(view.requestedAmount)} CKB`));
-
-  const recipient = document.createElement("div");
-  recipient.className = "kv";
-  recipient.append(
-    Object.assign(document.createElement("span"), { className: "kv__k", textContent: "recipient_lock_hash" }),
-  );
-  const wrap = document.createElement("span");
-  wrap.className = "kv__v";
-  wrap.append(hashChip(view.recipientLockHash, { head: 10, tail: 6 }));
-  recipient.append(wrap);
-  rows.push(recipient);
-
-  rows.push(buildKv("origin_block_number", view.originBlockNumber ? formatBlock(view.originBlockNumber) : "0 · filled on finalize"));
-  rows.push(buildKv("bond / capacity", `${formatCkb(view.bond)} CKB`));
-
-  const cellId = document.createElement("div");
-  cellId.className = "kv";
-  cellId.append(
-    Object.assign(document.createElement("span"), { className: "kv__k", textContent: "cell out point" }),
-  );
-  const outWrap = document.createElement("span");
-  outWrap.className = "kv__v";
-  outWrap.append(hashChip(`${view.outPoint.txHash}:${view.outPoint.index}`, { head: 12, tail: 6 }));
-  cellId.append(outWrap);
-  rows.push(cellId);
-
-  grid.append(...rows);
-  return grid;
-}
-
-function buildKv(key, value) {
-  const row = document.createElement("div");
-  row.className = "kv";
-  row.append(
-    Object.assign(document.createElement("span"), { className: "kv__k", textContent: key }),
-    Object.assign(document.createElement("span"), { className: "kv__v", textContent: value }),
-  );
-  return row;
-}
-
-/** The countdown a cell should show, depending on its status. */
-function cellCountdown(view) {
-  if (view.status === ProposalStatus.Open) {
-    if (view.voteExpired) {
-      return countdown({ blocks: 0, syncedAt: view.syncedAt, done: true, readyText: "vote duration elapsed · finalize now" });
-    }
-    return countdown({ blocks: view.remainingBlocks, syncedAt: view.syncedAt, readyText: "voting open" });
-  }
-  if (view.status === ProposalStatus.Finalized) {
-    if (view.challengeExpired) {
-      return countdown({ blocks: 0, syncedAt: view.syncedAt, done: true, readyText: "challenge time elapsed · pass now" });
-    }
-    return countdown({ blocks: view.challengeRemainingBlocks, syncedAt: view.syncedAt, readyText: "challenge over" });
-  }
-  return countdown({ blocks: 0, syncedAt: view.syncedAt, done: true, readyText: "passed · grant claimable" });
-}
-
-function actionBar(view) {
-  const bar = document.createElement("div");
-  bar.className = "proposal__actions";
-
-  const add = (label, iconName, className, handler, { disabled = false, title, note, action } = {}) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = `btn ${className}`;
-    if (action) button.dataset.action = action;
-    button.append(icon(iconName, { size: 15 }), document.createTextNode(label));
-    if (disabled) {
-      button.disabled = true;
-      if (title) button.title = title;
-    } else {
-      button.addEventListener("click", () => handler(button));
-    }
-    if (note) {
-      const wrap = document.createElement("span");
-      wrap.className = "stack";
-      wrap.style.gap = "5px";
-      wrap.append(
-        button,
-        el("span", { class: "dim", style: "font-size:11.5px", text: note }),
-      );
-      bar.append(wrap);
-      return;
-    }
-    bar.append(button);
-  };
-
-  add("Can it pass?", "gauge", "", (button) => onCheck(view, button), {
-    note: "dry run against yes_threshold",
-    action: "check",
-  });
 
   if (view.status === ProposalStatus.Open) {
-    add("Count votes", "calculator", "btn--primary", (button) => onCount(view, button), {
-      disabled: !view.voteExpired,
-      title: view.voteExpired
-        ? undefined
-        : `available in ${formatBlock(view.remainingBlocks)} blocks`,
-      note: "creates counting cells",
-      action: "count",
-    });
-    add("Finalize", "file-check", "", (button) => onFinalize(view, button), {
-      disabled: !view.voteExpired,
-      title: view.voteExpired ? undefined : "wait for the vote duration to elapse",
-      note: view.thresholdReached
-        ? "consumes proposal + counting cells"
-        : `needs ${formatCkb(view.missingYes)} CKB more yes`,
-      action: "finalize",
-    });
+    items.push(
+      {
+        label: "Count votes",
+        icon: "calculator",
+        className: "btn--primary",
+        action: "count",
+        note: "creates counting cells",
+        disabled: !view.voteExpired,
+        title: view.voteExpired ? undefined : `available in ${formatBlock(view.remainingBlocks)} blocks`,
+        onClick: (button) => onCount(view, button),
+      },
+      {
+        label: "Finalize",
+        icon: "file-check",
+        action: "finalize",
+        note: view.thresholdReached
+          ? "consumes proposal + counting cells"
+          : `needs ${formatCkb(view.missingYes)} CKB more yes`,
+        disabled: !view.voteExpired,
+        title: view.voteExpired ? undefined : "wait for the vote duration to elapse",
+        onClick: (button) => onFinalize(view, button),
+      },
+    );
     if (view.voteExpired && !view.thresholdReached) {
-      add("Recycle bond", "rotate-ccw", "btn--ghost", () => onRecycle(view), {
-        note: "the proposal did not reach the threshold",
+      items.push({
+        label: "Recycle bond",
+        icon: "rotate-ccw",
+        className: "btn--ghost",
         action: "recycle",
+        note: "the proposal did not reach the threshold",
+        onClick: () => onRecycle(view),
       });
     }
   } else if (view.status === ProposalStatus.Finalized) {
-    add("Pass", "trophy", "btn--yes", (button) => onPass(view, button), {
-      disabled: !view.challengeExpired,
-      title: view.challengeExpired ? undefined : "wait for the challenge time to elapse",
-      note: "always-success lock → initiator lock",
-      action: "pass",
-    });
-    add("Challenge info", "shield", "btn--ghost", () => onChallengeInfo(view), {
-      note: "anyone may challenge with NO votes",
-      action: "challenge-info",
-    });
+    items.push(
+      {
+        label: "Pass",
+        icon: "trophy",
+        className: "btn--yes",
+        action: "pass",
+        note: "always-success lock → initiator lock",
+        disabled: !view.challengeExpired,
+        title: view.challengeExpired ? undefined : "wait for the challenge time to elapse",
+        onClick: (button) => onPass(view, button),
+      },
+      {
+        label: "Challenge info",
+        icon: "shield",
+        className: "btn--ghost",
+        action: "challenge-info",
+        note: "anyone may challenge with NO votes",
+        onClick: () => onChallengeInfo(view),
+      },
+    );
   } else {
-    add("Claim grant", "send", "btn--primary", (button) => onClaim(view, button), {
-      note: "passed cell + treasury provider",
+    items.push({
+      label: "Claim grant",
+      icon: "send",
+      className: "btn--primary",
       action: "claim",
+      note: "passed cell + treasury provider",
+      onClick: (button) => onClaim(view, button),
     });
   }
-  return bar;
+  return items.map((spec) => actionItem(spec));
 }
-
-function proposalCard(view) {
-  const card = document.createElement("article");
-  card.className = "card proposal";
-  card.id = `cell-${view.id}`;
-
-  const head = document.createElement("div");
-  head.className = "proposal__head";
-  const titleWrap = document.createElement("div");
-  titleWrap.style.minWidth = "0";
-  const badges = document.createElement("div");
-  badges.className = "row row--wrap";
-  badges.append(statusBadge(view));
-  badges.append(
-    Object.assign(document.createElement("span"), {
-      className: "badge",
-      textContent: view.status === ProposalStatus.Passed ? "grant ready" : `bond ${formatCkb(view.bond)} CKB`,
-    }),
-  );
-  const title = document.createElement("h3");
-  title.className = "proposal__title";
-  title.style.marginTop = "10px";
-  title.textContent = view.description;
-  const idRow = document.createElement("div");
-  idRow.className = "proposal__id";
-  idRow.append(
-    Object.assign(document.createElement("span"), { className: "dim", textContent: "type script args" }),
-    hashChip(view.typeScript.args, { head: 14, tail: 8 }),
-  );
-  titleWrap.append(badges, title, idRow);
-
-  const amount = document.createElement("div");
-  amount.className = "proposal__amount";
-  amount.append(
-    Object.assign(document.createElement("div"), { className: "label", textContent: "requested" }),
-    Object.assign(document.createElement("div"), { className: "value-lg", textContent: formatCkb(view.requestedAmount) }),
-    Object.assign(document.createElement("div"), { className: "unit", textContent: "CKB" }),
-  );
-  head.append(titleWrap, amount);
-
-  const body = document.createElement("div");
-  body.className = "proposal__body";
-  const tally = document.createElement("div");
-  tally.className = "tally";
-  tally.append(
-    tallyBar({ label: "YES counted", amount: view.yes, total: view.total || 1n, tone: "yes" }),
-    tallyBar({ label: "NO counted", amount: view.no, total: view.total || 1n, tone: "no" }),
-  );
-  const quorum = document.createElement("div");
-  quorum.className = "quorum";
-  const qHead = document.createElement("div");
-  qHead.className = "quorum__head";
-  qHead.append(
-    Object.assign(document.createElement("span"), { textContent: "yes_threshold" }),
-    Object.assign(document.createElement("span"), {
-      className: `quorum__state quorum__state--${view.thresholdReached ? "ok" : "pending"}`,
-      textContent: view.thresholdReached
-        ? "reached"
-        : `short by ${formatCkb(view.missingYes)} CKB`,
-    }),
-  );
-  const qBar = document.createElement("div");
-  qBar.className = "bar bar--threshold";
-  const qFill = document.createElement("div");
-  qFill.className = "bar__fill";
-  qFill.dataset.width = String(percent(view.yes, view.threshold));
-  qBar.append(qFill);
-  quorum.append(qHead, qBar);
-  tally.append(quorum);
-  body.append(tally, infoGrid(view));
-
-  const strip = stageStrip(view);
-  const footer = document.createElement("div");
-  footer.className = "row row--wrap";
-  footer.append(cellCountdown(view));
-  card.append(head, body, strip, footer, actionBar(view));
-  return card;
-}
-
-/* --------------------------------------------------------------------------
-   Actions
-   -------------------------------------------------------------------------- */
 
 async function onCheck(view, button) {
   await withBusy(
@@ -712,7 +525,7 @@ function render() {
     return;
   }
 
-  list.replaceChildren(...filtered.map(proposalCard));
+  list.replaceChildren(...filtered.map((view) => proposalCard(view, { actions: initiatorActions })));
   animateBars(list);
 }
 

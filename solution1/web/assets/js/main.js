@@ -12,6 +12,7 @@ import { shorten } from "./util.js";
 import { initWelcome } from "./pages/welcome.js";
 import { initVoter } from "./pages/voter.js";
 import { initInitiator } from "./pages/initiator.js";
+import { initChallenger } from "./pages/challenger.js";
 
 let connecting = false;
 
@@ -53,6 +54,7 @@ const registry = {
   welcome: initWelcome,
   voter: initVoter,
   initiator: initInitiator,
+  challenger: initChallenger,
 };
 
 try {

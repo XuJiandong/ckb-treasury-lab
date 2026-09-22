@@ -18,8 +18,11 @@ import {
 import { findProposal, getState, setState, updateProposal } from "./state.js";
 import { CKB, sleep } from "./util.js";
 
-/** `constants.ts` -> `ProposalStatus`. */
-export const ProposalStatus = { Open: 0, Finalized: 1, Passed: 2 };
+/**
+ * `constants.ts` -> `ProposalStatus`, plus the terminal state this mockup uses
+ * for a finalized cell that a challenger already consumed.
+ */
+export const ProposalStatus = { Open: 0, Finalized: 1, Passed: 2, Challenged: 3 };
 /** `constants.ts` -> `Direction`. */
 export const Direction = { No: 0, Yes: 1 };
 
@@ -60,6 +63,19 @@ export function proposalView(proposal) {
   const counted = yes >= threshold;
 
   const myVote = walletVote(proposal);
+  const challenge = proposal.challenge ?? null;
+  const noCounted = challenge ? BigInt(challenge.countedNo) : 0n;
+  const challengeElapsed = challengeRemaining <= 0n;
+  // A challenge is settled by consuming the finalized cell, so it is only
+  // possible while that cell is still alive.
+  const challenged = proposal.status === ProposalStatus.Challenged;
+  const challengeOpen =
+    proposal.status === ProposalStatus.Finalized &&
+    !challenged &&
+    !challengeElapsed &&
+    !config.emergentHalt;
+  // `total_no >= total_yes`, see docs/proposal-type-script-spec.md.
+  const challengeMet = noCounted > 0n && noCounted >= yes;
 
   return {
     ...proposal,
@@ -81,6 +97,18 @@ export function proposalView(proposal) {
     accepted: counted,
     myVote,
     hasVoted: Boolean(myVote),
+    // Challenge view model.
+    challenged,
+    challengeOpen,
+    challenge,
+    noCounted,
+    noCountedCells: challenge?.countingCells ?? 0,
+    noCountedRanges: challenge?.ranges ?? [],
+    /** What this challenger still has to certify with NO counting cells. */
+    noMissing: challengeMet ? 0n : yes - noCounted,
+    challengeMet,
+    reward: BigInt(proposal.bond),
+    challengerCell: proposal.challengerCell ?? null,
     syncedAt,
     blockNumber: block,
   };
@@ -93,6 +121,20 @@ export function allViews() {
 /** Proposal cells of the connected initiator, newest first. */
 export function initiatorViews() {
   return allViews().sort((a, b) => Number(b.createdAtBlock - a.createdAtBlock));
+}
+
+/**
+ * The finalized proposal cells a challenger can act on: every one that is still
+ * alive, plus the ones this challenger already settled so the reward shows.
+ */
+export function challengerView() {
+  return allViews()
+    .filter(
+      (view) =>
+        view.status === ProposalStatus.Finalized ||
+        view.status === ProposalStatus.Challenged,
+    )
+    .sort((a, b) => Number(a.challengeRemainingBlocks - b.challengeRemainingBlocks));
 }
 
 /** Open proposals whose voting window has not elapsed (the voter page list). */
@@ -309,6 +351,139 @@ export async function withdrawVote(proposalId) {
 /** Formats the mock DAO deposit as the vote amount banner shows it. */
 export function votePower() {
   return MOCK_DAO.votePower;
+}
+
+/* --------------------------------------------------------------------------
+   Challenger operations
+   -------------------------------------------------------------------------- */
+
+/** The `NO` vote cells of a proposal, as the counting script would see them. */
+function noVoteCells(proposal) {
+  return proposal.votes.filter((vote) => vote.direction === Direction.No);
+}
+
+/** Requires a finalized, still-alive cell; mirrors the script's checks. */
+function assertChallengeable(view) {
+  if (view.status !== ProposalStatus.Finalized) {
+    throw new Error("the referenced cell is not a finalized proposal cell");
+  }
+  if (view.challenged) {
+    throw new Error("this finalized cell was already consumed by a challenge");
+  }
+  if (view.challengeExpired) {
+    throw new Error("config.challenge_time elapsed: the cell can only be passed now");
+  }
+  if (CONFIG_CELL.data.emergentHalt === 1) {
+    throw new Error("emergent_halt is set: every script fails");
+  }
+  return view;
+}
+
+/**
+ * `precheck` for a challenge — the challenger's "can this be challenged?"
+ * button. On chain the proposal script settles as soon as
+ * `total_no >= total_yes`, so this is the same comparison dry-run locally.
+ */
+export async function challengeCheck(proposalId) {
+  await sleep(640);
+  const view = proposalView(findProposal(proposalId));
+  const cells = noVoteCells(findProposal(proposalId));
+  const available = cells.reduce((sum, vote) => sum + BigInt(vote.voteAmount), 0n);
+  const locks = new Set(cells.map((vote) => vote.voterLockHash));
+  return {
+    challengeable: available >= view.yes && available > 0n,
+    alive: view.challengeOpen,
+    yes: view.yes,
+    availableNo: available,
+    countedNo: view.noCounted,
+    missingNo: available >= view.yes ? 0n : view.yes - available,
+    noVoteCells: cells.length,
+    distinctLocks: locks.size,
+    countingCellsAlready: view.noCountedCells,
+    reward: view.reward,
+  };
+}
+
+/**
+ * `createCounting` with `direction = NO`: the challenger certifies every
+ * "no" vote cell it can see, one counting cell per lock script.
+ *
+ * The result is kept on the proposal so the challenge button knows which
+ * counting cells it would consume.
+ */
+export async function countNoVotes(proposalId) {
+  await sleep(1150);
+  const proposal = findProposal(proposalId);
+  const view = assertChallengeable(proposalView(proposal));
+  const cells = noVoteCells(proposal);
+  const locks = new Set(cells.map((vote) => vote.voterLockHash));
+  const total = cells.reduce((sum, vote) => sum + BigInt(vote.voteAmount), 0n);
+  const countingCells = Math.max(1, locks.size);
+  const ranges = buildHashChunks(countingCells);
+  const { block } = snapshot();
+
+  updateProposal(proposalId, () => ({
+    challenge: {
+      countedNo: total,
+      countingCells,
+      ranges,
+      lockHashes: [...locks],
+      countedAtBlock: block,
+    },
+  }));
+
+  return {
+    countingCells,
+    countedNo: total,
+    ranges,
+    yes: view.yes,
+    met: total >= view.yes,
+    reward: view.reward,
+  };
+}
+
+/**
+ * `challenge` — consumes the "NO" counting cells plus the finalized proposal
+ * cell and pays the bond to a lock script one of those counting cells uses,
+ * which is what makes the reward reach the challenger.
+ */
+export async function challenge(proposalId) {
+  await sleep(1400);
+  const proposal = findProposal(proposalId);
+  const view = assertChallengeable(proposalView(proposal));
+  const counted = view.noCounted;
+  if (counted <= 0n) {
+    throw new Error("no NO counting cell to consume: count the votes first");
+  }
+  if (counted < view.yes) {
+    throw new Error(
+      `ChallengeNotMet: ${counted} NO shannons certified against ${view.yes} YES shannons`,
+    );
+  }
+  const me = wallet();
+  const { block } = snapshot();
+  const challengerCell = {
+    txHash:
+      "0x" +
+      Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) =>
+        b.toString(16).padStart(2, "0"),
+      ).join(""),
+    index: 0,
+    capacity: view.reward,
+    lockArgs: me.lock.args,
+    blockNumber: block,
+    countedNo: counted,
+    countingCells: view.noCountedCells,
+  };
+
+  updateProposal(proposalId, () => ({
+    status: ProposalStatus.Challenged,
+    challengedAtBlock: block,
+    challengerCell,
+    consumedCountingCells: view.noCountedCells,
+  }));
+
+  return challengerCell;
 }
 
 export const shannons = CKB;

@@ -142,32 +142,36 @@ export const SEED_PROPOSALS = [
           "0x5f2b8d1c4a7e9036b1d5f8a2c6e0b4d719283a4c5e6f708192a3b4c5d6e7f809",
         index: 0,
         direction: 1,
-        voteAmount: 24500n * CKB,
+        voteAmount: 38400n * CKB,
         blockNumber: B - 1780n,
+        voterLockHash: "0x27c1a4f0b8e93d26507c1db4a6f8290e13c5d7b4",
       },
       {
         txHash:
           "0x9a3c6e0f2b5d8a1c4e7f0b3d6a9c2e5f8012345678abcdef90a1b2c3d4e5f601",
         index: 0,
         direction: 1,
-        voteAmount: 41200n * CKB,
+        voteAmount: 52600n * CKB,
         blockNumber: B - 1740n,
+        voterLockHash: "0x8d2f5a1c94e70b36f528c1d47a9e03625b8c1f4d",
       },
       {
         txHash:
           "0x3c6f9012a3b4c5d6e7f8091a2b3c4d5e6f70819a2b3c4d5e6f70819a2b3c4d5e",
         index: 1,
         direction: 1,
-        voteAmount: 63220n * CKB,
+        voteAmount: 41200n * CKB,
         blockNumber: B - 1698n,
+        voterLockHash: "0xf3a9c6d201b58e47a0c3f6912d5b8e0472c9a135",
       },
       {
         txHash:
           "0x6f8091a2b3c4d5e6f70819a2b3c4d5e6f70819a2b3c4d5e6f70819a2b3c4d5e6f",
         index: 0,
         direction: 1,
-        voteAmount: 15000n * CKB,
+        voteAmount: 11720n * CKB,
         blockNumber: B - 1660n,
+        voterLockHash: "0x4b8e1d27c05a93f6b2184e7d0a3c596f82e1b740",
       },
       {
         txHash:
@@ -176,6 +180,7 @@ export const SEED_PROPOSALS = [
         direction: 0,
         voteAmount: 31980n * CKB,
         blockNumber: B - 1610n,
+        voterLockHash: "0x6a1d8e4b2f07c93a5e1b8d4f7a0c36295d8e1b4f",
       },
     ],
   },
@@ -207,6 +212,7 @@ export const SEED_PROPOSALS = [
         direction: 0,
         voteAmount: 28900n * CKB,
         blockNumber: B - 121n,
+        voterLockHash: "0x27c1a4f0b8e93d26507c1db4a6f8290e13c5d7b4",
       },
     ],
   },
@@ -242,8 +248,8 @@ export const SEED_PROPOSALS = [
     recipientAddress:
       "ckb1qrgqep8saj8agswr30pls73sk9sy57t4f0hl2q0th2vgz0zgqf8q5m9jw2c",
     totalYes: 63850n * CKB,
-    totalNo: 12400n * CKB,
-    originBlockNumber: B - 1450n,
+    totalNo: 67000n * CKB,
+    originBlockNumber: B - 640n,
     createdAtBlock: B - 6010n,
     bond: 5000n * CKB,
     capacity: 5000n * CKB,
@@ -252,7 +258,35 @@ export const SEED_PROPOSALS = [
         "0x8b1e4d7a0c3f62958b1e4d7a0c3f62958b1e4d7a0c3f62958b1e4d7a0c3f6295",
       index: 0,
     },
-    votes: [],
+    votes: [
+      {
+        txHash:
+          "0x1d4f7a0c3e6b9d2f5a8c1e4b7d0f36295a8c1e4b7d0f36295a8c1e4b7d0f3629",
+        index: 0,
+        direction: 1,
+        voteAmount: 63850n * CKB,
+        blockNumber: B - 5900n,
+        voterLockHash: "0x2c7f0a3d6b9e1f4a8c2e5b7d0f3916245a8c1e7b",
+      },
+      {
+        txHash:
+          "0x7c0f3a6d9e2b5f8a1c4e7b0d3f6a9c2e5b8d1f4a7c0e3b6d9f2a5c8e1b4d7f0a",
+        index: 0,
+        direction: 0,
+        voteAmount: 8245050000000n + 12345678n,
+        blockNumber: B - 5300n,
+        voterLockHash: "0x27c1a4f0b8e93d26507c1db4a6f8290e13c5d7b4",
+      },
+      {
+        txHash:
+          "0xa3f6c9e2b5d8a1c4e7b0d3f6a9c2e5b8d1f4a7c0e3b6d9f2a5c8e1b4d7f0a3c6",
+        index: 1,
+        direction: 0,
+        voteAmount: 36620n * CKB,
+        blockNumber: B - 5240n,
+        voterLockHash: "0x4b8e1d27c05a93f6b2184e7d0a3c596f82e1b740",
+      },
+    ],
   },
   {
     id: "p5",
@@ -317,7 +351,7 @@ export function proposalTypeScript(id) {
 /** Seeds for `localStorage`, so a reset restores exactly this state. */
 export function seedState() {
   return {
-    version: 5,
+    version: 6,
     wallet: null,
     proposals: SEED_PROPOSALS.map((proposal) => ({
       ...proposal,

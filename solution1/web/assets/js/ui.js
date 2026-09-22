@@ -80,6 +80,8 @@ const ICONS = {
   "menu": ["M4 6h16", "M4 12h16", "M4 18h16"],
   "book": ["M4 19.5A2.5 2.5 0 0 1 6.5 17H20", "M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"],
   "git-compare": ["M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z", "M12 8v8", "m9 11 3-3 3 3"],
+  "sword": ["M14.5 17.5 3 6V3h3l11.5 11.5", "m13 19 6-6", "m16 16 4 4", "m19 21 2-2", "M14.5 6.5 18 3h3v3l-3.5 3.5"],
+  "swords": ["M14.5 17.5 3 6V3h3l11.5 11.5", "M13 19l6-6", "M16 16l4 4", "M19 21l2-2", "M9.5 17.5 21 6V3h-3L6.5 14.5", "M11 19l-6-6", "M8 16l-4 4", "M5 21l-2-2"],
 };
 
 const FILLED = new Set(["zap", "shield", "trophy", "vote", "play", "pause", "flag", "key"]);
@@ -143,7 +145,9 @@ export function statusBadge(view) {
     1: { cls: "badge--finalized", text: "finalized · challenge" },
     2: { cls: "badge--passed", text: "passed · grant ready" },
   };
-  const info = map[view.status] ?? map[0];
+  const info = view.challenged
+    ? { cls: "badge--challenged", text: "challenged · bond paid" }
+    : (map[view.status] ?? map[0]);
   const badge = document.createElement("span");
   badge.className = `badge ${info.cls}`;
   badge.innerHTML = `<span class="badge__dot"></span>`;
