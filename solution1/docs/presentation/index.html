@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CKB Treasury Voting — How the Design Works</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <svg class="defs" width="0" height="0" aria-hidden="true">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#475569" />
+        </marker>
+      </defs>
+    </svg>
+    <main class="stage">
+      <div class="deck">
+        <!-- 1. Title -->
+        <section class="slide title-slide" data-steps="1">
+          <div class="floaters" aria-hidden="true">
+            <span class="floater c-config" style="--x: 90px; --y: 90px; --d: 0s">config</span>
+            <span class="floater c-proposal" style="--x: 1030px; --y: 120px; --d: 1.2s">proposal</span>
+            <span class="floater c-vote" style="--x: 60px; --y: 440px; --d: 0.6s">vote</span>
+            <span class="floater c-counting" style="--x: 1100px; --y: 440px; --d: 1.8s">counting</span>
+          </div>
+          <div class="title-block">
+            <p class="kicker">Nervos CKB · on-chain governance</p>
+            <h1>Treasury Voting on CKB</h1>
+            <p class="subtitle">A newcomer's tour of the design: cells, votes, counting and timing</p>
+            <p class="goal" data-step="1">
+              <b>Goal:</b> Nervos DAO depositors vote on treasury proposals using
+              <b>only on-chain scripts</b>, with no change to CKB nodes.
+            </p>
+          </div>
+          <p class="hint">Press <kbd>→</kbd> / <kbd>Space</kbd> to advance · <kbd>←</kbd> to go back · <kbd>F</kbd> fullscreen</p>
+        </section>
+
+        <!-- 2. CKB recap -->
+        <section class="slide" data-steps="4">
+          <h2>60-second CKB recap</h2>
+          <div class="recap">
+            <div class="recap-cards">
+              <div class="card" data-step="1">
+                <h3>Cell</h3>
+                <p>The unit of state: <code>capacity</code> (CKB), <code>data</code>, a <code>lock</code> script and an optional <code>type</code> script.</p>
+              </div>
+              <div class="card" data-step="2">
+                <h3>Transaction</h3>
+                <p>Consumes <b>inputs</b>, creates <b>outputs</b>. <b>cell_deps</b> are read-only references: a script can <i>read</i> them without spending them.</p>
+              </div>
+              <div class="card" data-step="3">
+                <h3>Lock &amp; type scripts</h3>
+                <p><b>Lock</b> = who may spend the cell. <b>Type</b> = rules on how the cell is created, updated or destroyed. This design identifies each cell by its type script.</p>
+              </div>
+              <div class="card" data-step="4">
+                <h3><code>since</code> &amp; Nervos DAO</h3>
+                <p>A relative <code>since</code> says “this input must be at least <i>N</i> blocks old”, which is how every waiting period is enforced. <b>DAO deposits</b> are locked CKB and provide the voting weight.</p>
+              </div>
+            </div>
+            <div class="mini-tx" aria-hidden="true">
+              <div class="mt-dep">cell_dep<br /><small>read only</small></div>
+              <div class="mt-dep-line"></div>
+              <div class="mt-in">input</div>
+              <div class="mt-tx">tx</div>
+              <div class="mt-out">output</div>
+              <p class="mt-caption">Inputs are consumed, outputs are created, deps are only read.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3. The four cells -->
+        <section class="slide" data-steps="4">
+          <h2>Four cell types, linked by hashes</h2>
+          <div class="links">
+            <svg class="overlay" viewBox="0 0 1280 720" aria-hidden="true">
+              <path data-step="2" class="draw" pathLength="1" d="M470,280 L352,280" marker-end="url(#arrow)" />
+              <path data-step="3" class="draw" pathLength="1" d="M900,215 C850,215 850,240 806,240" marker-end="url(#arrow)" />
+              <path data-step="4" class="draw" pathLength="1" d="M900,505 C840,505 850,310 808,300" marker-end="url(#arrow)" />
+              <path data-step="4" class="dashed" d="M1070,430 L1070,282" marker-end="url(#arrow)" />
+            </svg>
+
+            <div class="cell c-config" style="left: 40px; top: 150px; width: 310px" data-step="1">
+              <div class="cell-h">Config cell</div>
+              <dl>
+                <dt>type</dt><dd>config · args = Type ID</dd>
+                <dt>lock</dt><dd>very safe (multisig)</dd>
+                <dt>data</dt><dd>vote_window, vote_duration, challenge_time, yes_threshold, minimal_vote_amount, minimal_proposal_capacity, veto lock, emergent_halt …</dd>
+              </dl>
+            </div>
+
+            <div class="cell c-proposal" style="left: 470px; top: 150px; width: 335px" data-step="2">
+              <div class="cell-h">Proposal cell</div>
+              <dl>
+                <dt>type</dt><dd>proposal · args = <b>config id</b> ‖ Type ID</dd>
+                <dt>lock</dt><dd>initiator</dd>
+                <dt>cap.</dt><dd>bond ≥ minimal_proposal_capacity</dd>
+                <dt>data</dt><dd>status, description, requested_amount, recipient, total_yes, origin_block_number</dd>
+              </dl>
+            </div>
+
+            <div class="cell c-vote" style="left: 900px; top: 130px; width: 340px" data-step="3">
+              <div class="cell-h">Vote cell</div>
+              <dl>
+                <dt>type</dt><dd>vote · args = <b>blake160(proposal type)</b></dd>
+                <dt>lock</dt><dd>the voter</dd>
+                <dt>data</dt><dd>vote_amount, direction (YES / NO)</dd>
+              </dl>
+            </div>
+
+            <div class="cell c-counting" style="left: 900px; top: 432px; width: 340px" data-step="4">
+              <div class="cell-h">Counting cell</div>
+              <dl>
+                <dt>type</dt><dd>counting · args = <b>blake160(proposal type)</b></dd>
+                <dt>lock</dt><dd>whoever counts</dd>
+                <dt>data</dt><dd>hash range [start, end], direction, vote_amount (sum)</dd>
+              </dl>
+            </div>
+
+            <span class="edge-label" style="left: 360px; top: 250px" data-step="2">reads config</span>
+            <span class="edge-label" style="left: 826px; top: 196px" data-step="3">votes for</span>
+            <span class="edge-label" style="left: 820px; top: 430px" data-step="4">counts for</span>
+            <span class="edge-label dep" style="left: 1082px; top: 345px" data-step="4">cell_deps</span>
+
+            <div class="caption">
+              <p data-only="1">One <b>config cell</b> holds every parameter. All scripts read it, and <code>emergent_halt = 1</code> stops them all.</p>
+              <p data-only="2">A <b>proposal</b> is unique (Type ID) and locks up a <b>bond</b>. Status goes <code>0 proposal → 1 finalized → 2 passed</code>.</p>
+              <p data-only="3">A <b>vote</b> points at exactly one proposal: its args are the hash of the proposal's type script.</p>
+              <p data-only="4">A <b>counting cell</b> certifies the sum of a slice of vote cells, referenced as cell_deps.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- 4. Casting a vote -->
+        <section class="slide vote-slide" data-steps="4">
+          <h2>Casting a vote</h2>
+          <div class="group deps" data-step="1">
+            <span class="group-label">cell_deps (read only)</span>
+            <div class="cell c-proposal small">
+              <div class="cell-h">Proposal <span class="tag">status 0</span></div>
+              <p class="meta">created at block <b>1000</b></p>
+            </div>
+            <div class="cell c-dao small">
+              <div class="cell-h">DAO deposit <span class="tag">300 CKB</span></div>
+              <p class="meta">lock: Alice · block <b>820</b> ✓</p>
+            </div>
+            <div class="cell c-dao small">
+              <div class="cell-h">DAO deposit <span class="tag">200 CKB</span></div>
+              <p class="meta">lock: Alice · block <b>950</b> ✓</p>
+            </div>
+            <div class="cell c-bad small" data-step="4">
+              <div class="cell-h">DAO deposit <span class="tag">400 CKB</span></div>
+              <p class="meta">lock: Alice · block <b>1040</b> ✗ newer</p>
+            </div>
+          </div>
+          <div class="group inputs" data-step="2">
+            <span class="group-label">inputs</span>
+            <div class="cell c-plain small">
+              <div class="cell-h">Any cell of Alice</div>
+              <p class="meta">unlocked by her signature</p>
+            </div>
+          </div>
+
+          <div class="tx-box" data-step="3">tx</div>
+          <div class="tx-reject" data-step="4">✗ rejected if the<br />newer deposit is included</div>
+          <svg class="overlay" viewBox="0 0 1280 720" aria-hidden="true">
+            <path data-step="3" class="draw" pathLength="1" d="M430,340 L505,340" marker-end="url(#arrow)" />
+            <path data-step="3" class="draw" pathLength="1" d="M430,600 C470,600 470,380 505,370" marker-end="url(#arrow)" />
+            <path data-step="3" class="draw" pathLength="1" d="M585,350 L640,350" marker-end="url(#arrow)" />
+          </svg>
+
+          <div class="group outputs" data-step="3">
+            <span class="group-label">outputs</span>
+            <div class="cell c-vote">
+              <div class="cell-h">Vote cell</div>
+              <dl>
+                <dt>lock</dt><dd>Alice</dd>
+                <dt>type</dt><dd>vote · args = proposal id</dd>
+                <dt>data</dt><dd><span class="sum">300 + 200 = <b>500</b></span> · <b>YES</b></dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="notes">
+            <div data-only="1">
+              <h3>What the vote script reads</h3>
+              <p>The proposal (it must still be <b>status 0</b>) and the voter's <b>DAO deposits</b>, all passed as <b>cell_deps</b>.</p>
+            </div>
+            <div data-only="2">
+              <h3>Proving ownership</h3>
+              <p>An input with the <b>same lock</b> as the deposits must be unlocked. That proves the signer owns the deposits.</p>
+            </div>
+            <div data-only="3">
+              <h3>The vote cell</h3>
+              <ul>
+                <li><code>vote_amount</code> = sum of the referenced deposits</li>
+                <li>must be ≥ <code>minimal_vote_amount</code></li>
+                <li>lock = the voter, direction = YES or NO</li>
+                <li>deposits are only <i>read</i>, never moved</li>
+              </ul>
+            </div>
+            <div data-only="4">
+              <h3>Why “older than the proposal”?</h3>
+              <p>Every deposit must be created <b>before</b> the proposal. Otherwise someone could vote, withdraw, re-deposit and vote again with the same CKB. A re-deposit is always newer than the proposal, so it is rejected.</p>
+              <p class="small-note">Withdrawing a vote simply means consuming the vote cell. Keep it alive until it is counted.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- 5. Counting -->
+        <section class="slide count-slide" data-steps="4">
+          <h2>Counting: slicing votes by lock-hash prefix</h2>
+          <div class="count-area">
+            <div class="bucket" style="left: 40px">
+              <span class="range">[0x0000, 0x5554]</span>
+              <span class="bsum" data-step="3">Σ 1250</span>
+            </div>
+            <div class="bucket" style="left: 320px">
+              <span class="range">[0x5555, 0xAAA9]</span>
+              <span class="bsum" data-step="3">Σ 450</span>
+            </div>
+            <div class="bucket" style="left: 600px">
+              <span class="range">[0xAAAA, 0xFFFF]</span>
+              <span class="bsum" data-step="3">Σ 1050</span>
+            </div>
+
+            <div class="chip yes" style="--x0: 60px; --y0: 40px; --x1: 50px; --y1: 322px; --d: 0s">0x12ab <b>400</b></div>
+            <div class="chip yes" style="--x0: 560px; --y0: 110px; --x1: 175px; --y1: 322px; --d: 0.08s">0x3c07 <b>250</b></div>
+            <div class="chip yes" style="--x0: 330px; --y0: 20px; --x1: 50px; --y1: 374px; --d: 0.16s">0x4f90 <b>600</b></div>
+            <div class="chip yes" style="--x0: 700px; --y0: 30px; --x1: 330px; --y1: 322px; --d: 0.24s">0x6d21 <b>300</b></div>
+            <div class="chip yes" style="--x0: 180px; --y0: 120px; --x1: 455px; --y1: 322px; --d: 0.32s">0x9e5c <b>150</b></div>
+            <div class="chip yes" style="--x0: 450px; --y0: 60px; --x1: 610px; --y1: 322px; --d: 0.4s">0xb730 <b>500</b></div>
+            <div class="chip yes" style="--x0: 20px; --y0: 150px; --x1: 735px; --y1: 322px; --d: 0.48s">0xd4e2 <b>350</b></div>
+            <div class="chip yes" style="--x0: 720px; --y0: 140px; --x1: 610px; --y1: 374px; --d: 0.56s">0xf011 <b>200</b></div>
+            <div class="chip no" style="--x0: 250px; --y0: 70px; --x1: 200px; --y1: 190px; --d: 0.64s">0x7a10 <b>450</b> NO</div>
+            <div class="chip yes late" style="--x0: 600px; --y0: 180px; --x1: 520px; --y1: 190px; --d: 0.72s">0xc9b4 <b>300</b></div>
+            <span class="reject" style="left: 200px; top: 238px" data-step="2">✗ NO vote → a NO counting cell</span>
+            <span class="reject" style="left: 520px; top: 238px" data-step="2">✗ cast after vote_window</span>
+
+            <div class="total" data-step="4">
+              total_yes = 1250 + 450 + 1050 = <b>2750</b> ≥ yes_threshold ✓
+            </div>
+          </div>
+
+          <div class="notes">
+            <div data-only="0,1">
+              <h3>Vote cells pile up</h3>
+              <p>Each vote cell's lock hash has a 2-byte prefix (0x0000 to 0xFFFF). There may be thousands of vote cells, too many for one transaction.</p>
+            </div>
+            <div data-only="2">
+              <h3>Split into hash ranges</h3>
+              <p>Each <b>counting cell</b> covers an inclusive range <code>[start, end]</code> and references matching vote cells as cell_deps. Each one is its own small transaction.</p>
+            </div>
+            <div data-only="3">
+              <h3>The counting script checks</h3>
+              <ul>
+                <li>every lock prefix is inside the range</li>
+                <li>every lock is unique</li>
+                <li>same direction as the counting cell</li>
+                <li>each vote was cast less than <code>vote_window</code> blocks after the proposal</li>
+                <li>declared sum = real sum</li>
+              </ul>
+            </div>
+            <div data-only="4">
+              <h3>Finalize adds them up</h3>
+              <p>Ranges must <b>not overlap</b>, so no voter is counted twice. Counters may leave out tiny votes, so flooding the system with “dust” votes cannot force extra work.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- 6. Lifecycle -->
+        <section class="slide life-slide" data-steps="7">
+          <h2>The proposal lifecycle</h2>
+          <svg class="overlay" viewBox="0 0 1280 720" aria-hidden="true">
+            <path data-step="2" class="draw" pathLength="1" d="M270,333 L412,333" marker-end="url(#arrow)" />
+            <path data-step="3" class="draw" pathLength="1" d="M650,333 L772,333" marker-end="url(#arrow)" />
+            <path data-step="4" class="draw" pathLength="1" d="M650,360 C715,360 715,473 772,473" marker-end="url(#arrow)" />
+            <path data-step="5" class="draw" pathLength="1" d="M650,306 C715,306 715,193 772,193" marker-end="url(#arrow)" />
+            <path data-step="6" class="draw" pathLength="1" d="M1010,193 L1032,193" marker-end="url(#arrow)" />
+            <path data-step="7" class="draw" pathLength="1" d="M155,376 L155,512" marker-end="url(#arrow)" />
+          </svg>
+
+          <div class="state c-proposal" style="left: 40px; top: 290px" data-step="1">
+            <b>Proposal</b><span>status 0 · lock: initiator</span>
+          </div>
+          <div class="state c-proposal" style="left: 420px; top: 290px" data-step="2">
+            <b>Finalized</b><span>status 1 · lock: always-success</span>
+          </div>
+          <div class="state c-challenge" style="left: 780px; top: 290px" data-step="3">
+            <b>Challenged</b><span>burned · bond → challenger</span>
+          </div>
+          <div class="state c-veto" style="left: 780px; top: 430px" data-step="4">
+            <b>Vetoed</b><span>burned by the admin</span>
+          </div>
+          <div class="state c-pass" style="left: 780px; top: 150px" data-step="5">
+            <b>Passed</b><span>status 2</span>
+          </div>
+          <div class="state c-grant" style="left: 1040px; top: 150px; width: 200px" data-step="6">
+            <b>Granted</b><span>treasury pays</span>
+          </div>
+          <div class="state c-recycle" style="left: 40px; top: 520px" data-step="7">
+            <b>Recycled</b><span>bond back to initiator</span>
+          </div>
+
+          <span class="edge-label" style="left: 300px; top: 304px" data-step="2">finalize</span>
+          <span class="edge-label" style="left: 672px; top: 304px" data-step="3">challenge</span>
+          <span class="edge-label" style="left: 722px; top: 420px" data-step="4">veto</span>
+          <span class="edge-label" style="left: 722px; top: 226px" data-step="5">pass</span>
+          <span class="edge-label" style="left: 170px; top: 430px" data-step="7">recycle</span>
+
+          <div class="token" aria-hidden="true"></div>
+
+          <div class="rule">
+            <p data-only="0,1"><b>Create.</b> Type ID args make the proposal unique. The capacity is a <b>bond</b> ≥ <code>minimal_proposal_capacity</code>, which is what a proposer loses if the proposal is successfully challenged. Status 0, total_yes 0.</p>
+            <p data-only="2"><b>Finalize</b> (initiator): relative <code>since</code> &gt; <code>vote_duration</code>. YES counting cells with non-overlapping ranges, Σ ≥ <code>yes_threshold</code>, written to <code>total_yes</code>. Bond unchanged, lock becomes <b>always-success</b> so <i>anyone</i> can challenge, and <code>origin_block_number</code> = P.</p>
+            <p data-only="3"><b>Challenge</b> (anyone): NO counting cells whose Σ ≥ <code>total_yes</code>. The finalized cell is burned and the bond goes to a lock used by the challenger's counting cells.</p>
+            <p data-only="4"><b>Veto</b> (admin): an input unlocked by <code>veto_lock_script_hash</code> can burn a finalized proposal.</p>
+            <p data-only="5"><b>Pass</b>: the finalized input's relative <code>since</code> &gt; <code>challenge_time</code>. Status 1 → 2. Description, amount, recipient and origin can never be rewritten.</p>
+            <p data-only="6"><b>Grant</b>: the passed cell is consumed with a treasury cell, and an output locked by <code>recipient_lock_hash</code> receives ≥ <code>requested_amount</code>.</p>
+            <p data-only="7"><b>Recycle</b> (initiator): a proposal that never passes gets its bond back once relative <code>since</code> &gt; <code>vote_duration + challenge_time</code>.</p>
+          </div>
+        </section>
+
+        <!-- 7. Timing -->
+        <section class="slide" id="timing" data-steps="6">
+          <h2>Timing: three block counts</h2>
+          <p class="lead">
+            <code>vote_window</code>, <code>vote_duration</code> and <code>challenge_time</code> are plain <b>block counts</b>, compared either with block numbers or with a relative <code>since</code>.
+          </p>
+          <svg class="tl" viewBox="0 0 1200 360" role="img" aria-label="Voting timeline"></svg>
+
+          <div class="whatifs" data-step="5">
+            <div class="whatif">
+              <h4>Late vote</h4>
+              <p>Cast at P + vote_window + 5: the vote script accepts it (status is still 0), but the counting script rejects it (<code>VoteOutsideWindow</code>).</p>
+            </div>
+            <div class="whatif">
+              <h4>Counting too early</h4>
+              <p>A counting cell created at block ≤ P + vote_duration makes finalize fail (<code>CountingCellTooEarly</code>).</p>
+            </div>
+            <div class="whatif">
+              <h4>Challenger's NO votes</h4>
+              <p>Measured from <code>origin_block_number</code> with the same vote_window, so NO votes must be cast <b>during voting</b>. New votes are impossible after finalize.</p>
+            </div>
+            <div class="whatif">
+              <h4>Passing too early</h4>
+              <p>Pass needs relative since &gt; challenge_time (strict). At exactly F + challenge_time it is still rejected.</p>
+            </div>
+          </div>
+
+          <div class="sliders" data-step="6">
+            <label>vote_window <input type="range" min="20" max="200" value="80" data-param="voteWindow" /><output></output></label>
+            <label>vote_duration <input type="range" min="20" max="200" value="100" data-param="voteDuration" /><output></output></label>
+            <label>challenge_time <input type="range" min="20" max="200" value="60" data-param="challengeTime" /><output></output></label>
+            <p class="tl-warning"></p>
+          </div>
+        </section>
+
+        <!-- 8. Why each rule exists -->
+        <section class="slide" data-steps="3">
+          <h2>Why each rule exists</h2>
+          <div class="why-grid">
+            <div class="why" data-step="1"><h4>Deposits older than the proposal</h4><p>No vote → withdraw → re-deposit → vote again.</p></div>
+            <div class="why" data-step="1"><h4>Unique locks, no duplicate cell_deps</h4><p>A voter or a deposit is counted once.</p></div>
+            <div class="why" data-step="1"><h4>Non-overlapping hash ranges</h4><p>Counting cells can be summed safely.</p></div>
+            <div class="why" data-step="2"><h4>vote_window</h4><p>The set of countable votes is fixed; late votes can't sway the tally.</p></div>
+            <div class="why" data-step="2"><h4>Always-success lock after finalize</h4><p>Anyone can challenge; the initiator can't block it.</p></div>
+            <div class="why" data-step="2"><h4>challenge_time</h4><p>Time for NO voters to be counted before passing.</p></div>
+            <div class="why" data-step="3"><h4>Bond</h4><p>Proposing costs something, and a challenger has an incentive.</p></div>
+            <div class="why" data-step="3"><h4>minimal_vote_amount</h4><p>Dust votes can't flood the system.</p></div>
+            <div class="why" data-step="3"><h4>Veto &amp; emergent_halt</h4><p>Safety valves, held by the config's (multisig) lock.</p></div>
+          </div>
+          <p class="read-next" data-step="3">
+            Read next: <code>docs/design.md</code> and the proposal / vote / counting / config type script specs.
+          </p>
+        </section>
+      </div>
+    </main>
+
+    <nav class="nav">
+      <button class="nav-prev" aria-label="Previous">←</button>
+      <span class="counter"></span>
+      <button class="nav-next" aria-label="Next">→</button>
+      <div class="progress"><div class="progress-bar"></div></div>
+    </nav>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

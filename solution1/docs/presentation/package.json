@@ -1,0 +1,17 @@
+{
+  "name": "ckb-voting-presentation",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Animated web presentation of the CKB voting system design",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --hot run dev.ts",
+    "build": "rm -rf dist && bun build ./index.html --outdir ./dist --minify --public-path ./",
+    "preview": "bun run preview.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "typescript": "^5.9.3"
+  }
+}
