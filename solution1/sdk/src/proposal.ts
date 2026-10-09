@@ -288,6 +288,11 @@ export async function finalizeProposal(
         cellOutput: proposal.cell.cellOutput,
         outputData: proposal.cell.outputData,
       },
+      ...counting.map(({ cell }) => ({
+        previousOutput: cell.outPoint,
+        cellOutput: cell.cellOutput,
+        outputData: cell.outputData,
+      })),
     ],
     outputs: [
       ccc.CellOutput.from(
@@ -305,9 +310,7 @@ export async function finalizeProposal(
     cellDepFromDeployment(config.scripts.proposal),
     ccc.CellDep.from({ outPoint: info.cell.outPoint, depType: "code" }),
     cellDepFromDeployment(config.scripts.alwaysSuccess),
-    ...counting.map(({ cell }) =>
-      ccc.CellDep.from({ outPoint: cell.outPoint, depType: "code" }),
-    ),
+    cellDepFromDeployment(config.scripts.counting),
   ]);
   await addHeaderDeps(tx, client, [params.proposalOutPoint]);
   await addCountingCellHeaders(
@@ -458,6 +461,11 @@ export async function challengeProposal(
         cellOutput: proposal.cell.cellOutput,
         outputData: proposal.cell.outputData,
       },
+      ...counting.map(({ cell }) => ({
+        previousOutput: cell.outPoint,
+        cellOutput: cell.cellOutput,
+        outputData: cell.outputData,
+      })),
     ],
     outputs: [
       { capacity: proposal.cell.cellOutput.capacity, lock: rewardLock },
@@ -468,9 +476,7 @@ export async function challengeProposal(
     cellDepFromDeployment(config.scripts.proposal),
     ccc.CellDep.from({ outPoint: info.cell.outPoint, depType: "code" }),
     cellDepFromDeployment(config.scripts.alwaysSuccess),
-    ...counting.map(({ cell }) =>
-      ccc.CellDep.from({ outPoint: cell.outPoint, depType: "code" }),
-    ),
+    cellDepFromDeployment(config.scripts.counting),
   ]);
   await addCountingCellHeaders(
     tx,

@@ -60,11 +60,12 @@ pub enum Error {
     YesThresholdNotMet = 49,
     /// The "NO" counting cells do not outnumber the "YES" votes.
     ChallengeNotMet = 50,
-    /// A referenced counting cell is invalid for this proposal.
+    /// A counting cell consumed by this transaction is invalid for this
+    /// proposal.
     CountingCellInvalid = 51,
     /// The hash ranges of the counting cells overlap.
     CountingRangeOverlap = 52,
-    /// No counting cell was referenced.
+    /// No counting cell was consumed.
     CountingCellMissing = 53,
     /// A passed proposal must create an output for `recipient_lock_hash`.
     RecipientOutputMissing = 54,

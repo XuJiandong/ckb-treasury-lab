@@ -247,9 +247,10 @@ export async function requireCellHeader(
 /**
  * Adds the headers of the blocks that created `outPoints` to `tx.header_deps`.
  *
- * The voting scripts read the creating block of a cell through
- * `load_header(..., Source::CellDep)`, which only succeeds when that header is
- * listed in the transaction. Duplicates are skipped.
+ * The voting scripts read the creating block of a cell through `load_header`
+ * (`Source::Input` for a counting cell, `Source::CellDep` for the cells they
+ * only reference), which only succeeds when that header is listed in the
+ * transaction. Duplicates are skipped.
  */
 export async function addHeaderDeps(
   tx: ccc.Transaction,

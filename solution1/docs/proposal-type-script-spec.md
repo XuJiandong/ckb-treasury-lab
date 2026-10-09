@@ -52,7 +52,7 @@ The cell's `capacity` must be greater than or equal to `config.minimal_proposal_
 The cell's lock script should be chosen from the initiator's pubkey, so that only the initiator can unlock the proposal cell and control the final operation.
 
 ### Updating to be finalized
-In this phase, a proposal cell, together with some counting cells, is consumed to generate a finalized proposal cell. This can only happen after `config.vote_duration` blocks have elapsed since the proposal cell was created. `config.vote_duration` is a block count, so the script can validate this by checking that:
+In this phase, a proposal cell, together with some counting cells as input cells, is consumed to generate a finalized proposal cell. This can only happen after `config.vote_duration` blocks have elapsed since the proposal cell was created. `config.vote_duration` is a block count, so the script can validate this by checking that:
 1. the `since` in the input cell is larger than `config.vote_duration`.
 2. the `since` is a relative `since` with the block number metric, which makes it a block count comparable with `config.vote_duration`
 
@@ -90,7 +90,7 @@ The treasury cell checks the proposal cell for the following:
 
 
 ### Updating to be challenged
-This process is identical to the `Updating to be finalized` phase, except for the following:
+This process is identical to the `Updating to be finalized` phase; the counting cells are input cells here as well. The differences are:
 * All counting cells should have a direction of "NO"
 
 It sums all "NO" values (called `total_no`) in the counting cells' cell data. The challenge succeeds, and the transaction is accepted, when `total_no` is greater than or equal to the `total_yes` recorded in the finalized proposal cell (`total_no >= total_yes`). It fails with `ChallengeNotMet` when fewer "NO" shannons are certified and the recycling window has not elapsed yet.
