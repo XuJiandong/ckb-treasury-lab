@@ -74,6 +74,11 @@ After `config.challenge_time` blocks have elapsed since the proposal cell was fi
 The `status` field in the cell data should change from `1` ("finalized") to `2` ("passed").
 See [RFC](https://github.com/nervosnetwork/rfcs/blob/master/rfcs/0017-tx-valid-since/0017-tx-valid-since.md) for more information.
 
+There are further limitations on this transaction:
+1. the capacity of the proposal cell should remain the same
+2. the lock script hash of the passed proposal cell should be equal to `config.recipient_lock_hash`
+
+
 ### Receiving Assets
 The passed proposal cell, together with a treasury provider (not described in this spec), can generate a new cell that holds `request_amount` assets and is locked by the script identified by `recipient_lock_hash`. The proposal cell must be consumed entirely in this transaction. The treasury cell supplies the assets, though it is not described here. 
 
