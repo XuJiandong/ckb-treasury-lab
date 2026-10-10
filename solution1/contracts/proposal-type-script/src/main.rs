@@ -142,6 +142,16 @@ fn update(script: &Script, config_id: &[u8; CONFIG_ID_LEN]) -> Result<(), Error>
         return Err(Error::ProposalFieldsChanged);
     }
 
+    // The bond is the challenger's incentive and the passed cell keeps carrying
+    // it, so an update may not drain the proposal cell.
+    let input_capacity =
+        load_cell_capacity(0, Source::GroupInput).map_err(|_| Error::SyscallError)?;
+    let output_capacity =
+        load_cell_capacity(0, Source::GroupOutput).map_err(|_| Error::SyscallError)?;
+    if input_capacity != output_capacity {
+        return Err(Error::ProposalCapacityChanged);
+    }
+
     let since = load_input_since(0, Source::GroupInput).map_err(|_| Error::SyscallError)?;
 
     match (input.status().as_slice()[0], output.status().as_slice()[0]) {
@@ -162,6 +172,13 @@ fn update(script: &Script, config_id: &[u8; CONFIG_ID_LEN]) -> Result<(), Error>
             if u64_of(input.origin_block_number()) != u64_of(output.origin_block_number()) {
                 return Err(Error::ProposalDataInvalid);
             }
+            // The passed cell is the recipient's receipt for the grant, so it
+            // may only be unlocked by the lock the proposal names.
+            let lock_hash =
+                load_cell_lock_hash(0, Source::GroupOutput).map_err(|_| Error::SyscallError)?;
+            if lock_hash[..RECIPIENT_LOCK_HASH_LEN] != output.recipient_lock_hash().as_slice()[..] {
+                return Err(Error::ProposalRecipientLockMismatch);
+            }
             Ok(())
         }
         _ => Err(Error::ProposalStatusInvalid),
@@ -180,15 +197,6 @@ fn finalize(
     // number carried by the relative `since` of the proposal input.
     if elapsed <= config.vote_duration {
         return Err(Error::VoteDurationNotElapsed);
-    }
-
-    // The bond is the challenger's incentive, it may not be drained here.
-    let input_capacity =
-        load_cell_capacity(0, Source::GroupInput).map_err(|_| Error::SyscallError)?;
-    let output_capacity =
-        load_cell_capacity(0, Source::GroupOutput).map_err(|_| Error::SyscallError)?;
-    if input_capacity != output_capacity {
-        return Err(Error::ProposalCapacityChanged);
     }
 
     // The finalized cell must be spendable by anyone, otherwise it could not be
@@ -346,12 +354,12 @@ struct Tally {
     lock_hashes: Vec<[u8; 32]>,
 }
 
-/// Collects the counting cells of `direction` referenced by this transaction.
+/// Collects the counting cells of `direction` consumed by this transaction.
 ///
-/// Counting cells may be consumed (inputs) or merely referenced (cell deps);
-/// both are accepted, the design only requires them to accompany the proposal
-/// cell. Each counting cell is a certificate that was validated by the counting
-/// type script when it was created, so summing their `vote_amount` is enough.
+/// Counting cells are input cells: they are consumed together with the proposal
+/// cell, which is what recycles their capacity. Each counting cell is a
+/// certificate that was validated by the counting type script when it was
+/// created, so summing their `vote_amount` is enough.
 ///
 /// The hash ranges of the cells must not overlap: two ranges `[h1, h2]` and
 /// `[h3, h4]` overlap when some value satisfies `h1 <= v <= h2` and
@@ -372,42 +380,41 @@ fn collect_counting_cells(
     let mut lock_hashes: Vec<[u8; 32]> = Vec::new();
     let mut total_amount = 0u64;
 
-    for source in [Source::Input, Source::CellDep] {
-        for (index, type_script) in QueryIter::new(load_cell_type, source).enumerate() {
-            let Some(type_script) = type_script else {
-                continue;
-            };
-            if !config.is_counting_script(&type_script) {
-                continue;
-            }
-            if type_script.args().raw_data().as_ref() != &proposal_id[..] {
-                return Err(Error::CountingCellInvalid);
-            }
-            let data = load_cell_data(index, source).map_err(|_| Error::CountingCellInvalid)?;
-            let counting = Counting::from_slice(&data).map_err(|_| Error::CountingCellInvalid)?;
-            if counting.direction().as_slice()[0] != direction {
-                return Err(Error::CountingCellInvalid);
-            }
-            // Collection only starts after the voting duration has elapsed.
-            let block_number = proposal::block_number_of(index, source)?;
-            let earliest = origin
-                .checked_add(config.vote_duration)
-                .ok_or(Error::AmountOverflow)?;
-            if block_number <= earliest {
-                #[cfg(feature = "enable_log")]
-                warn!("a counting cell was created before the voting duration elapsed");
-                return Err(Error::CountingCellTooEarly);
-            }
-            // Every hash range has to satisfy `start_hash <= end_hash`;
-            // `HashRange::new` enforces it.
-            let hash_range = read_hash_range(&counting)?;
-            ranges.push(hash_range);
-            lock_hashes
-                .push(load_cell_lock_hash(index, source).map_err(|_| Error::CountingCellInvalid)?);
-            total_amount = total_amount
-                .checked_add(u64_of(counting.vote_amount()))
-                .ok_or(Error::AmountOverflow)?;
+    for (index, type_script) in QueryIter::new(load_cell_type, Source::Input).enumerate() {
+        let Some(type_script) = type_script else {
+            continue;
+        };
+        if !config.is_counting_script(&type_script) {
+            continue;
         }
+        if type_script.args().raw_data().as_ref() != &proposal_id[..] {
+            return Err(Error::CountingCellInvalid);
+        }
+        let data = load_cell_data(index, Source::Input).map_err(|_| Error::CountingCellInvalid)?;
+        let counting = Counting::from_slice(&data).map_err(|_| Error::CountingCellInvalid)?;
+        if counting.direction().as_slice()[0] != direction {
+            return Err(Error::CountingCellInvalid);
+        }
+        // Collection only starts after the voting duration has elapsed.
+        let block_number = proposal::block_number_of(index, Source::Input)?;
+        let earliest = origin
+            .checked_add(config.vote_duration)
+            .ok_or(Error::AmountOverflow)?;
+        if block_number <= earliest {
+            #[cfg(feature = "enable_log")]
+            warn!("a counting cell was created before the voting duration elapsed");
+            return Err(Error::CountingCellTooEarly);
+        }
+        // Every hash range has to satisfy `start_hash <= end_hash`;
+        // `HashRange::new` enforces it.
+        let hash_range = read_hash_range(&counting)?;
+        ranges.push(hash_range);
+        lock_hashes.push(
+            load_cell_lock_hash(index, Source::Input).map_err(|_| Error::CountingCellInvalid)?,
+        );
+        total_amount = total_amount
+            .checked_add(u64_of(counting.vote_amount()))
+            .ok_or(Error::AmountOverflow)?;
     }
 
     if range::any_overlap(&mut ranges) {

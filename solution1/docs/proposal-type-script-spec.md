@@ -52,7 +52,7 @@ The cell's `capacity` must be greater than or equal to `config.minimal_proposal_
 The cell's lock script should be chosen from the initiator's pubkey, so that only the initiator can unlock the proposal cell and control the final operation.
 
 ### Updating to be finalized
-In this phase, a proposal cell, together with some counting cells, is consumed to generate a finalized proposal cell. This can only happen after `config.vote_duration` blocks have elapsed since the proposal cell was created. `config.vote_duration` is a block count, so the script can validate this by checking that:
+In this phase, a proposal cell, together with some counting cells as input cells, is consumed to generate a finalized proposal cell. This can only happen after `config.vote_duration` blocks have elapsed since the proposal cell was created. `config.vote_duration` is a block count, so the script can validate this by checking that:
 1. the `since` in the input cell is larger than `config.vote_duration`.
 2. the `since` is a relative `since` with the block number metric, which makes it a block count comparable with `config.vote_duration`
 
@@ -74,6 +74,11 @@ After `config.challenge_time` blocks have elapsed since the proposal cell was fi
 The `status` field in the cell data should change from `1` ("finalized") to `2` ("passed").
 See [RFC](https://github.com/nervosnetwork/rfcs/blob/master/rfcs/0017-tx-valid-since/0017-tx-valid-since.md) for more information.
 
+There are further limitations on this transaction:
+1. the capacity of the proposal cell should remain the same
+2. the lock script hash of the passed proposal cell should be equal to the proposal cell's `recipient_lock_hash`
+
+
 ### Receiving Assets
 The passed proposal cell, together with a treasury provider (not described in this spec), can generate a new cell that holds `request_amount` assets and is locked by the script identified by `recipient_lock_hash`. The proposal cell must be consumed entirely in this transaction. The treasury cell supplies the assets, though it is not described here. 
 
@@ -85,7 +90,7 @@ The treasury cell checks the proposal cell for the following:
 
 
 ### Updating to be challenged
-This process is identical to the `Updating to be finalized` phase, except for the following:
+This process is identical to the `Updating to be finalized` phase; the counting cells are input cells here as well. The differences are:
 * All counting cells should have a direction of "NO"
 
 It sums all "NO" values (called `total_no`) in the counting cells' cell data. The challenge succeeds, and the transaction is accepted, when `total_no` is greater than or equal to the `total_yes` recorded in the finalized proposal cell (`total_no >= total_yes`). It fails with `ChallengeNotMet` when fewer "NO" shannons are certified and the recycling window has not elapsed yet.

@@ -108,7 +108,11 @@ fn update_tx(
         .outputs(outputs)
         .outputs_data([data, Bytes::new()].pack());
     for cell in counting {
-        builder = builder.cell_dep(dep(&cell.out_point));
+        builder = builder.input(
+            CellInput::new_builder()
+                .previous_output(cell.out_point.clone())
+                .build(),
+        );
         if let Some(hash) = &cell.block_hash {
             headers.push(hash.clone());
         }
@@ -124,7 +128,7 @@ fn settle_tx(
     since: u64,
     outputs: Vec<CellOutput>,
     outputs_data: Vec<Bytes>,
-    extra_deps: &[PlacedCell],
+    counting: &[PlacedCell],
 ) -> TransactionView {
     let config_cell = fixture.config_cell.clone();
     let mut headers = Vec::new();
@@ -138,8 +142,12 @@ fn settle_tx(
         .cell_dep(dep(&config_cell))
         .outputs(outputs)
         .outputs_data(outputs_data.pack());
-    for cell in extra_deps {
-        builder = builder.cell_dep(dep(&cell.out_point));
+    for cell in counting {
+        builder = builder.input(
+            CellInput::new_builder()
+                .previous_output(cell.out_point.clone())
+                .build(),
+        );
         if let Some(hash) = &cell.block_hash {
             headers.push(hash.clone());
         }
@@ -549,7 +557,7 @@ fn test_finalize_requires_always_success_lock() {
 }
 
 /// Spec: proposal, "Updating to be finalized" - at least one counting cell has
-/// to be referenced, otherwise the result of the vote is unknown.
+/// to be consumed, otherwise the result of the vote is unknown.
 #[test]
 fn test_finalize_requires_a_counting_cell() {
     let mut fixture = Fixture::new();
@@ -562,6 +570,31 @@ fn test_finalize_requires_a_counting_cell() {
         &output,
         &[],
     );
+
+    assert_script_error(&fixture.context, &tx, Error::CountingCellMissing);
+}
+
+/// Spec: proposal, "Updating to be finalized" - the counting cells are input
+/// cells, so a counting cell that is only referenced through `cell_deps` is
+/// ignored, exactly as if it were missing.
+#[test]
+fn test_finalize_ignores_a_counting_cell_cell_dep() {
+    let mut fixture = Fixture::new();
+    let proposal = open_proposal(&mut fixture);
+    let counting = yes_counting(&mut fixture, &proposal, YES_THRESHOLD);
+    let output = finalized_output(&fixture, &proposal, YES_THRESHOLD);
+    let tx = update_tx(
+        &mut fixture,
+        &proposal,
+        relative_since(VOTE_DURATION + 1),
+        &output,
+        &[],
+    );
+    // The counting cell is referenced, but not consumed.
+    let tx = tx
+        .as_advanced_builder()
+        .cell_dep(dep(&counting.out_point))
+        .build();
 
     assert_script_error(&fixture.context, &tx, Error::CountingCellMissing);
 }
@@ -731,6 +764,8 @@ fn test_pass_proposal() {
     );
     let mut output = finalized_output(&fixture, &proposal, YES_THRESHOLD);
     output.status = status::PROPOSAL_STATUS_PASSED;
+    // The passed cell is locked by the recipient, not by the initiator.
+    output.lock = fixture.recipient_lock.clone();
     let tx = update_tx(
         &mut fixture,
         &proposal,
@@ -744,6 +779,56 @@ fn test_pass_proposal() {
         .verify_tx(&tx, MAX_CYCLES)
         .expect("the finalized proposal is passed");
     println!("consume cycles: {}", cycles);
+}
+
+/// Spec: proposal, "Updating to be passed" - the passed cell may only be
+/// unlocked by the lock `recipient_lock_hash` names; the initiator's own lock is
+/// rejected even though it is an `always success` lock as well.
+#[test]
+fn test_pass_requires_the_recipient_lock() {
+    let mut fixture = Fixture::new();
+    let proposal = proposal_with_status(
+        &mut fixture,
+        status::PROPOSAL_STATUS_FINALIZED,
+        YES_THRESHOLD,
+    );
+    let mut output = finalized_output(&fixture, &proposal, YES_THRESHOLD);
+    output.status = status::PROPOSAL_STATUS_PASSED;
+    // `finalized_output` leaves the initiator lock in place.
+    let tx = update_tx(
+        &mut fixture,
+        &proposal,
+        relative_since(CHALLENGE_TIME + 1),
+        &output,
+        &[],
+    );
+
+    assert_script_error(&fixture.context, &tx, Error::ProposalRecipientLockMismatch);
+}
+
+/// Spec: proposal, "Updating to be passed" - the capacity of the proposal cell
+/// has to remain the same: the passed cell still carries the bond.
+#[test]
+fn test_pass_capacity_changed() {
+    let mut fixture = Fixture::new();
+    let proposal = proposal_with_status(
+        &mut fixture,
+        status::PROPOSAL_STATUS_FINALIZED,
+        YES_THRESHOLD,
+    );
+    let mut output = finalized_output(&fixture, &proposal, YES_THRESHOLD);
+    output.status = status::PROPOSAL_STATUS_PASSED;
+    output.lock = fixture.recipient_lock.clone();
+    output.capacity = proposal.capacity + ONE_CKB;
+    let tx = update_tx(
+        &mut fixture,
+        &proposal,
+        relative_since(CHALLENGE_TIME + 1),
+        &output,
+        &[],
+    );
+
+    assert_script_error(&fixture.context, &tx, Error::ProposalCapacityChanged);
 }
 
 /// Spec: proposal, "Updating to be passed" - the `since` must be larger than
@@ -981,6 +1066,36 @@ fn test_challenge_below_the_bar() {
         vec![Bytes::new()],
         &[counting],
     );
+
+    assert_script_error(&fixture.context, &tx, Error::ChallengeNotMet);
+}
+
+/// Spec: proposal, "Updating to be challenged" - the counting cells are input
+/// cells here as well, so a "NO" counting cell that is only referenced through
+/// `cell_deps` certifies nothing.
+#[test]
+fn test_challenge_ignores_a_counting_cell_cell_dep() {
+    let mut fixture = Fixture::new();
+    let proposal = proposal_with_status(
+        &mut fixture,
+        status::PROPOSAL_STATUS_FINALIZED,
+        YES_THRESHOLD,
+    );
+    let counting = no_counting(&mut fixture, &proposal, YES_THRESHOLD);
+    let outputs = vec![change_output(&fixture)];
+    let tx = settle_tx(
+        &mut fixture,
+        &proposal,
+        relative_since(0),
+        outputs,
+        vec![Bytes::new()],
+        &[],
+    );
+    // The counting cell is referenced, but not consumed.
+    let tx = tx
+        .as_advanced_builder()
+        .cell_dep(dep(&counting.out_point))
+        .build();
 
     assert_script_error(&fixture.context, &tx, Error::ChallengeNotMet);
 }

@@ -87,7 +87,10 @@ export function registerProposalCommands(program: Command): void {
   addSignerOptions(program.command("pass-proposal"))
     .description("turn a finalized proposal into a passed one")
     .requiredOption("--proposal <outPoint>", "the finalized proposal cell")
-    .option("--lock <address>", "lock of the passed cell")
+    .option(
+      "--lock <address>",
+      "lock of the passed cell (the proposal recipient)",
+    )
     .option("--wait", "wait until the challenge time elapsed")
     .action(
       act(async (options) => {
