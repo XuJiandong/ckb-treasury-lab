@@ -76,6 +76,8 @@ pub enum Error {
     ChallengeRewardMissing = 56,
     /// A counting cell was created before `config.vote_duration` elapsed.
     CountingCellTooEarly = 57,
+    /// The passed proposal cell is not locked by `recipient_lock_hash`.
+    ProposalRecipientLockMismatch = 58,
 
     // ------------------------------------------------------ vote type script
     /// The vote cell data is not a well formed `Vote`.

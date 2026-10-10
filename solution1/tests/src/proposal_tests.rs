@@ -764,6 +764,8 @@ fn test_pass_proposal() {
     );
     let mut output = finalized_output(&fixture, &proposal, YES_THRESHOLD);
     output.status = status::PROPOSAL_STATUS_PASSED;
+    // The passed cell is locked by the recipient, not by the initiator.
+    output.lock = fixture.recipient_lock.clone();
     let tx = update_tx(
         &mut fixture,
         &proposal,
@@ -777,6 +779,56 @@ fn test_pass_proposal() {
         .verify_tx(&tx, MAX_CYCLES)
         .expect("the finalized proposal is passed");
     println!("consume cycles: {}", cycles);
+}
+
+/// Spec: proposal, "Updating to be passed" - the passed cell may only be
+/// unlocked by the lock `recipient_lock_hash` names; the initiator's own lock is
+/// rejected even though it is an `always success` lock as well.
+#[test]
+fn test_pass_requires_the_recipient_lock() {
+    let mut fixture = Fixture::new();
+    let proposal = proposal_with_status(
+        &mut fixture,
+        status::PROPOSAL_STATUS_FINALIZED,
+        YES_THRESHOLD,
+    );
+    let mut output = finalized_output(&fixture, &proposal, YES_THRESHOLD);
+    output.status = status::PROPOSAL_STATUS_PASSED;
+    // `finalized_output` leaves the initiator lock in place.
+    let tx = update_tx(
+        &mut fixture,
+        &proposal,
+        relative_since(CHALLENGE_TIME + 1),
+        &output,
+        &[],
+    );
+
+    assert_script_error(&fixture.context, &tx, Error::ProposalRecipientLockMismatch);
+}
+
+/// Spec: proposal, "Updating to be passed" - the capacity of the proposal cell
+/// has to remain the same: the passed cell still carries the bond.
+#[test]
+fn test_pass_capacity_changed() {
+    let mut fixture = Fixture::new();
+    let proposal = proposal_with_status(
+        &mut fixture,
+        status::PROPOSAL_STATUS_FINALIZED,
+        YES_THRESHOLD,
+    );
+    let mut output = finalized_output(&fixture, &proposal, YES_THRESHOLD);
+    output.status = status::PROPOSAL_STATUS_PASSED;
+    output.lock = fixture.recipient_lock.clone();
+    output.capacity = proposal.capacity + ONE_CKB;
+    let tx = update_tx(
+        &mut fixture,
+        &proposal,
+        relative_since(CHALLENGE_TIME + 1),
+        &output,
+        &[],
+    );
+
+    assert_script_error(&fixture.context, &tx, Error::ProposalCapacityChanged);
 }
 
 /// Spec: proposal, "Updating to be passed" - the `since` must be larger than

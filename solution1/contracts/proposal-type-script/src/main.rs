@@ -142,6 +142,16 @@ fn update(script: &Script, config_id: &[u8; CONFIG_ID_LEN]) -> Result<(), Error>
         return Err(Error::ProposalFieldsChanged);
     }
 
+    // The bond is the challenger's incentive and the passed cell keeps carrying
+    // it, so an update may not drain the proposal cell.
+    let input_capacity =
+        load_cell_capacity(0, Source::GroupInput).map_err(|_| Error::SyscallError)?;
+    let output_capacity =
+        load_cell_capacity(0, Source::GroupOutput).map_err(|_| Error::SyscallError)?;
+    if input_capacity != output_capacity {
+        return Err(Error::ProposalCapacityChanged);
+    }
+
     let since = load_input_since(0, Source::GroupInput).map_err(|_| Error::SyscallError)?;
 
     match (input.status().as_slice()[0], output.status().as_slice()[0]) {
@@ -162,6 +172,13 @@ fn update(script: &Script, config_id: &[u8; CONFIG_ID_LEN]) -> Result<(), Error>
             if u64_of(input.origin_block_number()) != u64_of(output.origin_block_number()) {
                 return Err(Error::ProposalDataInvalid);
             }
+            // The passed cell is the recipient's receipt for the grant, so it
+            // may only be unlocked by the lock the proposal names.
+            let lock_hash =
+                load_cell_lock_hash(0, Source::GroupOutput).map_err(|_| Error::SyscallError)?;
+            if lock_hash[..RECIPIENT_LOCK_HASH_LEN] != output.recipient_lock_hash().as_slice()[..] {
+                return Err(Error::ProposalRecipientLockMismatch);
+            }
             Ok(())
         }
         _ => Err(Error::ProposalStatusInvalid),
@@ -180,15 +197,6 @@ fn finalize(
     // number carried by the relative `since` of the proposal input.
     if elapsed <= config.vote_duration {
         return Err(Error::VoteDurationNotElapsed);
-    }
-
-    // The bond is the challenger's incentive, it may not be drained here.
-    let input_capacity =
-        load_cell_capacity(0, Source::GroupInput).map_err(|_| Error::SyscallError)?;
-    let output_capacity =
-        load_cell_capacity(0, Source::GroupOutput).map_err(|_| Error::SyscallError)?;
-    if input_capacity != output_capacity {
-        return Err(Error::ProposalCapacityChanged);
     }
 
     // The finalized cell must be spendable by anyone, otherwise it could not be

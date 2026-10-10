@@ -76,7 +76,7 @@ See [RFC](https://github.com/nervosnetwork/rfcs/blob/master/rfcs/0017-tx-valid-s
 
 There are further limitations on this transaction:
 1. the capacity of the proposal cell should remain the same
-2. the lock script hash of the passed proposal cell should be equal to `config.recipient_lock_hash`
+2. the lock script hash of the passed proposal cell should be equal to the proposal cell's `recipient_lock_hash`
 
 
 ### Receiving Assets

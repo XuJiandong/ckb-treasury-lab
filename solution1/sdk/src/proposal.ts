@@ -359,6 +359,12 @@ export async function passProposal(
   const lock = params.lock
     ? await resolveLock(client, params.lock)
     : await signerLock(signer);
+  if (blake160(lock.toBytes()) !== proposal.data.recipientLockHash) {
+    throw new Error(
+      `the lock of the passed cell does not hash to the proposal's ` +
+        `recipient_lock_hash ${proposal.data.recipientLockHash}`,
+    );
+  }
   const data = encodeProposalCellData({
     ...proposal.data,
     status: ProposalStatus.Passed,
