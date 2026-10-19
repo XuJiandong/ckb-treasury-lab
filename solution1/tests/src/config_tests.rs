@@ -7,7 +7,7 @@
 //! `docs/config-type-script-spec.md`.
 
 use crate::helpers::{
-    CONFIG_CAPACITY, FUNDING_CAPACITY, Fixture, MAX_CYCLES, ONE_CKB, YES_THRESHOLD,
+    CONFIG_CAPACITY, FUNDING_CAPACITY, Fixture, MAX_CYCLES, ONE_CKB, VOTE_DURATION, YES_THRESHOLD,
     assert_script_error, type_id,
 };
 use ckb_testtool::ckb_types::{
@@ -187,6 +187,37 @@ fn test_config_hash_type_out_of_range() {
     });
 
     assert_script_error(&fixture.context, &tx, Error::ConfigCellInvalid);
+}
+
+/// Spec: config, "Cell Data" - `vote_window` may not exceed `vote_duration`:
+/// a vote cast after finalization could never be counted.
+#[test]
+fn test_config_vote_window_exceeds_vote_duration() {
+    let mut fixture = Fixture::new();
+    fixture.config.vote_window = VOTE_DURATION + 1;
+    let data = fixture.config_data();
+    let tx = mint_tx(&mut fixture, CONFIG_CAPACITY, data, |input| {
+        type_id(input, 0).to_vec().into()
+    });
+
+    assert_script_error(&fixture.context, &tx, Error::ConfigCellInvalid);
+}
+
+/// Spec: config, "Cell Data" - `vote_window` equal to `vote_duration` is the
+/// boundary of the rule and stays valid.
+#[test]
+fn test_update_config_vote_window_equal_vote_duration() {
+    let mut fixture = Fixture::new();
+    fixture.config.vote_duration = VOTE_DURATION + 5;
+    fixture.config.vote_window = VOTE_DURATION + 5;
+    let data = fixture.config_data();
+    let tx = update_tx(&mut fixture, data);
+
+    let cycles = fixture
+        .context
+        .verify_tx(&tx, MAX_CYCLES)
+        .expect("a vote window equal to the vote duration is accepted");
+    println!("consume cycles: {}", cycles);
 }
 
 /// Spec: config, "Script" - updating keeps the `args`: `1 in / 1 out` with the

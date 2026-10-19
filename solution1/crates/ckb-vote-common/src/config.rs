@@ -112,6 +112,7 @@ impl Config {
             || !constants::is_valid_script_hash_type(self.vote_hash_type)
             || !constants::is_valid_script_hash_type(self.counting_hash_type)
             || !constants::is_valid_script_hash_type(self.always_success_hash_type)
+            || self.vote_window > self.vote_duration
         {
             return Err(Error::ConfigCellInvalid);
         }
