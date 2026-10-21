@@ -708,9 +708,9 @@ fn test_finalize_rejects_a_foreign_counting_cell() {
     assert_script_error(&fixture.context, &tx, Error::CountingCellInvalid);
 }
 
-/// Spec: proposal, "Updating" - `description`, `requested_amount` and
-/// `recipient_lock_hash` are immutable once the proposal is created; only the
-/// status and `total_yes` may change.
+/// Spec: proposal, "Cell Data" - `description`, `requested_amount` and
+/// `recipient_lock_hash` are fixed once the proposal is created; an update may
+/// not rewrite what the voters decided on.
 #[test]
 fn test_update_immutable_fields() {
     let mut fixture = Fixture::new();
@@ -891,6 +891,34 @@ fn test_pass_preserves_origin() {
     let mut output = finalized_output(&fixture, &proposal, YES_THRESHOLD);
     output.status = status::PROPOSAL_STATUS_PASSED;
     output.origin_block_number = proposal.origin_block_number + 1;
+    let tx = update_tx(
+        &mut fixture,
+        &proposal,
+        relative_since(CHALLENGE_TIME + 1),
+        &output,
+        &[],
+    );
+
+    assert_script_error(&fixture.context, &tx, Error::ProposalDataInvalid);
+}
+
+/// Spec: proposal, "Cell Data" - only the `status` may change on the way to
+/// passed; `total_yes` is the bar a challenge had to beat and may not be
+/// rewritten.
+#[test]
+fn test_pass_preserves_total_yes() {
+    let mut fixture = Fixture::new();
+    let proposal = proposal_with_status(
+        &mut fixture,
+        status::PROPOSAL_STATUS_FINALIZED,
+        YES_THRESHOLD,
+    );
+    let mut output = finalized_output(&fixture, &proposal, YES_THRESHOLD);
+    output.status = status::PROPOSAL_STATUS_PASSED;
+    // The passed cell is locked by the recipient, so the transaction is only
+    // rejected by the rewritten `total_yes`.
+    output.lock = fixture.recipient_lock.clone();
+    output.total_yes = YES_THRESHOLD + 1;
     let tx = update_tx(
         &mut fixture,
         &proposal,

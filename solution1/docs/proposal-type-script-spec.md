@@ -36,6 +36,8 @@ The `description` field is UTF-8 text that describes the proposal.
 
 The `requested_amount` field specifies the amount of assets that can be granted if the vote passes, while `recipient_lock_hash` is the lock script ckb-blake160-hash of the target recipient.
 
+When a proposal cell is updated to a finalized proposal cell or a passed proposal cell, only the `status`, `total_yes` and `origin_block_number` cell data fields may change; every other cell data field must stay the same. The `total_yes` and `origin_block_number` fields can only be updated when transitioning to a finalized proposal cell.
+
 
 ## Witness
 No witness is needed.

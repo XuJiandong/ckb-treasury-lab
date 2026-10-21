@@ -167,9 +167,12 @@ fn update(script: &Script, config_id: &[u8; CONFIG_ID_LEN]) -> Result<(), Error>
             if since::relative_block_number(since)? <= config.challenge_time {
                 return Err(Error::ChallengeTimeNotElapsed);
             }
-            // The origin anchors the voting window of a challenge, so it is
-            // consensus relevant and may not be rewritten on the way to passed.
-            if u64_of(input.origin_block_number()) != u64_of(output.origin_block_number()) {
+            // A passed cell only changes its status: the origin anchors the
+            // voting window of a challenge and `total_yes` is the bar a
+            // challenge had to beat, so neither may be rewritten.
+            if u64_of(input.total_yes()) != u64_of(output.total_yes())
+                || u64_of(input.origin_block_number()) != u64_of(output.origin_block_number())
+            {
                 return Err(Error::ProposalDataInvalid);
             }
             // The passed cell is the recipient's receipt for the grant, so it
